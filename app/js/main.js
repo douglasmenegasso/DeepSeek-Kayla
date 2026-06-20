@@ -239,7 +239,7 @@ window.addEventListener('DOMContentLoaded', function() {
     
     // Registrar Service Worker
     if ('serviceWorker' in navigator) {
-        navigator.serviceWorker.register('sw.js')
+        navigator.serviceWorker.register('/app/sw.js')
             .then(function(registration) {
                 console.log('[SW] Service Worker registrado:', registration.scope);
             })
