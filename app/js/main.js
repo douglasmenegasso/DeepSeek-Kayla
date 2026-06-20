@@ -1,5 +1,70 @@
 // ============ MAIN - INICIALIZAÇÃO E NAVEGAÇÃO ============
 
+// ============ HISTÓRICO DE VERSÕES (DEFINIÇÃO) ============
+// Isso foi adicionado aqui porque o navegador não estava encontrando essa lista
+var HISTORICO_VERSOES = [
+    { 
+        versao: '5.4.0', 
+        data: '17/06/2026', 
+        mudancas: [
+            '💳 Sistema de Pagamentos com Mercado Pago',
+            '📧 Envio de emails via SendGrid (ativação, upgrade)',
+            '🔑 Sistema de Keys PRO com validação',
+            '📱 Registro automático de dispositivos',
+            '⬆️ Upgrade de dispositivos (calcula corretamente)',
+            '💾 Backup local (exportar/importar) - PRO',
+            '💬 Suporte via WhatsApp',
+            '🔒 Autenticação de domínio (DKIM, SPF, DMARC)',
+            '✅ Correção: upgrade não estende prazo da assinatura'
+        ] 
+    },
+    { 
+        versao: '5.3.1', 
+        data: '10/06/2026', 
+        mudancas: [
+            'Relógio e data no header', 
+            'Botão ? com histórico de versões', 
+            'Versão centralizada'
+        ] 
+    },
+    { 
+        versao: '5.3.0', 
+        data: '09/06/2026', 
+        mudancas: [
+            'Correção login offline', 
+            'Service Worker otimizado', 
+            'Bloqueio PDF para free'
+        ] 
+    },
+    { 
+        versao: '5.2.0', 
+        data: '08/06/2026', 
+        mudancas: [
+            'Landing page kayla.app.br', 
+            'Domínio configurado', 
+            'E-mails Microsoft 365'
+        ] 
+    },
+    { 
+        versao: '5.1.0', 
+        data: '07/06/2026', 
+        mudancas: [
+            'Correção caminhos pasta app/', 
+            'Offline funcionando', 
+            'DNS configurado'
+        ] 
+    },
+    { 
+        versao: '5.0.1', 
+        data: '06/06/2026', 
+        mudancas: [
+            'Movido para pasta app/', 
+            'GitHub Pages configurado', 
+            'PWA funcional'
+        ] 
+    }
+];
+
 // ============ RELÓGIO E DATA ============
 function atualizarRelogio() {
     var agora = new Date();
