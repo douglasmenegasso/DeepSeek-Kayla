@@ -166,7 +166,7 @@ async function fazerLogin() {
                 }
                 
                 await loginSucesso(result.data.user, lembrarMe);
-                await verificarAcessoApp();
+                // await verificarAcessoApp();
             } else {
                 toast('Erro ao fazer login', 'error');
             }
