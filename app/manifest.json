@@ -10,25 +10,25 @@
   "orientation": "portrait-primary",
   "icons": [
     {
-      "src": "assets/icons/icon-192-dark.png",
+      "src": "/app/assets/icons/icon-192-dark.png",  // <-- CORREÇÃO
       "sizes": "192x192",
       "type": "image/png",
       "purpose": "any"
     },
     {
-      "src": "assets/icons/icon-192-dark.png",
+      "src": "/app/assets/icons/icon-192-dark.png",  // <-- CORREÇÃO
       "sizes": "192x192",
       "type": "image/png",
       "purpose": "maskable"
     },
     {
-      "src": "assets/icons/icon-512-dark.png",
+      "src": "/app/assets/icons/icon-512-dark.png",  // <-- CORREÇÃO
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "any"
     },
     {
-      "src": "assets/icons/icon-512-dark.png",
+      "src": "/app/assets/icons/icon-512-dark.png",  // <-- CORREÇÃO
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "maskable"
@@ -41,7 +41,7 @@
       "short_name": "Venda",
       "description": "Criar nova venda",
       "url": "/app/index.html?aba=scan",
-      "icons": [{"src": "assets/icons/icon-192-dark.png", "sizes": "192x192"}]
+      "icons": [{"src": "/app/assets/icons/icon-192-dark.png", "sizes": "192x192"}]  // <-- CORREÇÃO
     }
   ]
 }
