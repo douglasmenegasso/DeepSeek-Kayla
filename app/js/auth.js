@@ -1,4 +1,4 @@
-// ============ AUTENTICAÇÃO ============
+// ============ AUTENTICAÇÃO (Versão Segura) ============
 
 function mostrarTelaSelecao() {
     document.getElementById('login-screen').style.display = 'flex';
@@ -87,63 +87,11 @@ async function fazerLogin() {
     
     console.log('[AUTH] Tentando login - Email:', email, 'Online:', isOnline);
     
-    // OFFLINE: Primeiro verifica se tem sessão salva
+    // Verifica sessão salva OFF-LINE
     var userSalvo = localStorage.getItem('kayla_user');
     var emailSalvo = localStorage.getItem('kayla_email');
-    var senhaSalva = localStorage.getItem('kayla_senha_hash');
     
-    if (!isOnline && userSalvo && emailSalvo === email) {
-        console.log('[AUTH] Login OFFLINE detectado');
-        
-        try {
-            var userOffline = JSON.parse(userSalvo);
-            
-            if (senhaSalva) {
-                var senhaDecodificada = atob(senhaSalva);
-                if (senha !== senhaDecodificada) {
-                    toast('Senha incorreta', 'error');
-                    if (btn) {
-                        btn.innerText = textoOriginal;
-                        btn.disabled = false;
-                    }
-                    return;
-                }
-            }
-            
-            currentUser = userOffline;
-            
-            if (lembrarMe) {
-                localStorage.setItem('kayla_lembrar_me', 'true');
-                localStorage.setItem('kayla_email', email);
-            }
-            
-            carregarDadosLocais();
-            
-            fecharModal();
-            toast('Bem-vindo (Offline)!', 'success');
-            mostrarApp();
-            atualizarBadgePlano();
-            
-            console.log('[AUTH] Login OFFLINE sucesso');
-            
-            if (btn) {
-                btn.innerText = textoOriginal;
-                btn.disabled = false;
-            }
-            return;
-            
-        } catch(e) {
-            console.error('[AUTH] Erro ao fazer login offline:', e);
-            toast('Erro ao carregar sessão offline', 'error');
-            if (btn) {
-                btn.innerText = textoOriginal;
-                btn.disabled = false;
-            }
-            return;
-        }
-    }
-    
-    // ONLINE: Tenta login no Supabase
+    // Tenta login ONLINE
     if (supabaseClient) {
         console.log('[AUTH] Login ONLINE via Supabase');
         
@@ -158,6 +106,37 @@ async function fazerLogin() {
             if (result.error) {
                 var errorMsg = result.error.message || 'Erro desconhecido';
                 
+                // Se der erro, tenta login OFFLINE como fallback
+                if (userSalvo && emailSalvo === email) {
+                    console.log('[AUTH] Falha online, tentando offline...');
+                    toast('Sem conexão. Tentando login offline...', 'warning');
+                    
+                    try {
+                        var userOffline = JSON.parse(userSalvo);
+                        currentUser = userOffline;
+                        
+                        if (lembrarMe) {
+                            localStorage.setItem('kayla_lembrar_me', 'true');
+                            localStorage.setItem('kayla_email', email);
+                        }
+                        
+                        carregarDadosLocais();
+                        fecharModal();
+                        toast('Bem-vindo (Offline)!', 'success');
+                        mostrarApp();
+                        atualizarBadgePlano();
+                        
+                        if (btn) {
+                            btn.innerText = textoOriginal;
+                            btn.disabled = false;
+                        }
+                        return;
+                    } catch(e) {
+                        console.error('[AUTH] Erro no fallback offline:', e);
+                    }
+                }
+                
+                // Se não conseguiu offline, mostra erro amigável
                 if (errorMsg.toLowerCase().includes('invalid login credentials') || 
                     errorMsg.toLowerCase().includes('bad request')) {
                     toast('E-mail ou senha incorretos!', 'error');
@@ -178,8 +157,16 @@ async function fazerLogin() {
             
             // Login online sucesso
             if (result.data && result.data.user) {
-                await loginSucesso(result.data.user, senha, lembrarMe);
-                // ⭐ REMOVIDO: await verificarAcessoApp(); (função não existe)
+                // NOVO: Salva sessão SEM senha
+                var session = result.data.session;
+                if (session) {
+                    // Salva o token de acesso
+                    localStorage.setItem('kayla_access_token', session.access_token);
+                    localStorage.setItem('kayla_refresh_token', session.refresh_token);
+                }
+                
+                await loginSucesso(result.data.user, lembrarMe);
+                await verificarAcessoApp();
             } else {
                 toast('Erro ao fazer login', 'error');
             }
@@ -187,8 +174,9 @@ async function fazerLogin() {
         } catch(error) {
             console.error('[AUTH] Exceção no login:', error);
             
+            // Se der erro de conexão, tenta offline
             if (userSalvo && emailSalvo === email) {
-                console.log('[AUTH] Falha online, tentando offline...');
+                console.log('[AUTH] Exceção online, tentando offline...');
                 toast('Sem conexão. Tentando login offline...', 'warning');
                 
                 try {
@@ -211,7 +199,6 @@ async function fazerLogin() {
                         btn.disabled = false;
                     }
                     return;
-                    
                 } catch(e) {
                     console.error('[AUTH] Erro no fallback offline:', e);
                 }
@@ -229,18 +216,15 @@ async function fazerLogin() {
     }
 }
 
-async function loginSucesso(user, senha, lembrarMe) {
+async function loginSucesso(user, lembrarMe) {
     console.log('[AUTH] Login sucesso:', user.email);
     
     currentUser = user;
     
     try {
+        // Salva apenas dados do usuário, NUNCA a senha
         localStorage.setItem('kayla_user', JSON.stringify(user));
         localStorage.setItem('kayla_email', user.email);
-        
-        if (senha) {
-            localStorage.setItem('kayla_senha_hash', btoa(senha));
-        }
         
         if (lembrarMe) {
             localStorage.setItem('kayla_lembrar_me', 'true');
@@ -259,8 +243,6 @@ async function loginSucesso(user, senha, lembrarMe) {
         carregarDadosLocais();
     }
     
-    await verificarStatusPro();
-    
     fecharModal();
     toast('Bem-vindo!', 'success');
     mostrarApp();
@@ -272,6 +254,7 @@ async function loginSucesso(user, senha, lembrarMe) {
 async function fazerLogout() {
     console.log('[AUTH] Logout iniciado');
     
+    // Limpa sessão no Supabase
     if (supabaseClient && isOnline) {
         try {
             await supabaseClient.auth.signOut();
@@ -280,10 +263,12 @@ async function fazerLogout() {
         }
     }
     
+    // Limpa todos os dados locais
     localStorage.removeItem('kayla_lembrar_me');
     localStorage.removeItem('kayla_email');
     localStorage.removeItem('kayla_user');
-    localStorage.removeItem('kayla_senha_hash');
+    localStorage.removeItem('kayla_access_token'); // Limpa token
+    localStorage.removeItem('kayla_refresh_token'); // Limpa token
     localStorage.removeItem('perfilAcesso');
     
     currentUser = null;
@@ -378,4 +363,25 @@ function recuperarSenha() {
     });
 }
 
-console.log('✅ Auth.js carregado');
+// Verifica se o usuário está logado automaticamente ao carregar a página
+window.addEventListener('DOMContentLoaded', function() {
+    // Se tiver token de acesso salvo, tenta restaurar sessão
+    var accessToken = localStorage.getItem('kayla_access_token');
+    if (accessToken && supabaseClient) {
+        supabaseClient.auth.setSession({
+            access_token: accessToken,
+            refresh_token: localStorage.getItem('kayla_refresh_token') || ''
+        }).then(function(result) {
+            if (result.data && result.data.session) {
+                verificarSessao();
+            }
+        }).catch(function(e) {
+            console.warn('Erro ao restaurar sessão via token:', e);
+            verificarSessao();
+        });
+    } else {
+        verificarSessao();
+    }
+});
+
+console.log('✅ Auth.js carregado (Versão Segura)');
