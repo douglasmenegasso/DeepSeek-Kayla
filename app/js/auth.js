@@ -242,6 +242,10 @@ async function loginSucesso(user, lembrarMe) {
         console.log('[AUTH] Carregando dados offline...');
         carregarDadosLocais();
     }
+
+    // ✅ CORREÇÃO AQUI: Verifica se o usuário tem assinatura PRO no Supabase
+    await verificarStatusPro(); 
+    // ✅ FIM DA CORREÇÃO
     
     fecharModal();
     toast('Bem-vindo!', 'success');
