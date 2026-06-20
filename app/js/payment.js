@@ -308,9 +308,10 @@ function selecionarMetodoPagamento(metodo, planoId, numDispositivos, valor) {
     html += '<button class="btn btn-outline" onclick="confirmarPlano(\'' + planoId + '\', ' + numDispositivos + ')" style="margin-top:8px;width:100%">← Voltar</button>';
     
     document.getElementById('modal-body').innerHTML = html;
+    document.getElementById('modal-overlay').classList.add('show');
 }
 
-// ============ PAGAMENTO MERCADO PAGO ============
+// ============ PAGAMENTO MERCADO PAGO (Atualizado) ============
 
 async function pagarComMercadoPago(planoId, numDispositivos, valor, metodoPagamento) {
     metodoPagamento = metodoPagamento || 'pix';
@@ -323,7 +324,7 @@ async function pagarComMercadoPago(planoId, numDispositivos, valor, metodoPagame
     toast('Processando...', 'warning');
     
     try {
-        // Buscar ID do plano
+        // Registrar pagamento no banco
         var planoResult = await supabaseClient
             .from('planos')
             .select('id')
@@ -369,12 +370,12 @@ async function pagarComMercadoPago(planoId, numDispositivos, valor, metodoPagame
         
         var pagamentoId = registroPagamento.data.id;
         
-        // Chamar Edge Function
-        var response = await fetch('https://xwwklngrkvdwgiinycvt.supabase.co/functions/v1/criar-pagamento', {
+        // **MUDANÇA IMPORTANTE**: Chama o arquivo PHP em vez de usar a chave no front-end
+        // Certifique-se de que o arquivo criar-pagamento.php esteja na raiz do seu site!
+        var response = await fetch('/criar-pagamento.php', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
-                'Authorization': 'Bearer ' + SUPABASE_KEY
             },
             body: JSON.stringify({
                 titulo: 'Kayla PRO - ' + PLANOS[planoId].nome,
