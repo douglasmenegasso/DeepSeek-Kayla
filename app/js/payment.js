@@ -834,6 +834,13 @@ async function gerenciarDispositivos() {
         return;
     }
     
+    // ✅ CORREÇÃO AQUI: Buscar a assinatura ativa ANTES de buscar os dispositivos
+    var assinatura = await getAssinaturaAtiva();
+    if (!assinatura) {
+        toast('Nenhuma assinatura ativa', 'error');
+        return;
+    }
+    
     try {
         // ✅ CORREÇÃO AQUI: Busca APENAS os dispositivos com ativo = true
         var result = await supabaseClient
@@ -888,8 +895,6 @@ async function gerenciarDispositivos() {
         toast('Erro ao carregar dispositivos', 'error');
     }
 }
-
-
 
 // ============ CANCELAMENTO / DOWNGRADE DE DISPOSITIVOS ============
 
