@@ -264,25 +264,25 @@ async function removerDispositivo(deviceId, assinaturaId, elementoHtml) {
         return false;
     }
     
-    // Verificação extra: se o ID da assinatura não foi passado, tenta buscar
+    // Verifica se o ID da assinatura foi passado corretamente
     if (!assinaturaId) {
         try {
             var assinatura = await getAssinaturaAtiva();
             if (assinatura) {
                 assinaturaId = assinatura.id;
             } else {
-                toast('Assinatura não encontrada. Recarregue a página.', 'error');
+                toast('Assinatura não encontrada.', 'error');
                 return false;
             }
         } catch(e) {
-            console.error('[Dispositivo] Erro ao buscar assinatura:', e);
-            toast('Erro ao buscar assinatura', 'error');
+            console.error('[Dispositivo] Erro:', e);
+            toast('Erro ao buscar assinatura.', 'error');
             return false;
         }
     }
     
     try {
-        // ✅ CORREÇÃO: Envia a atualização com a coluna no nome EXATO do Supabase
+        // ✅ Atualiza o dispositivo no banco para ativo = false
         var { error } = await supabaseClient
             .from('dispositivos')
             .update({ ativo: false }) 
@@ -295,7 +295,7 @@ async function removerDispositivo(deviceId, assinaturaId, elementoHtml) {
             return false;
         }
         
-        // Atualizar contador de dispositivos usados no banco
+        // Atualizar o contador na assinatura
         var { data: assinatura, error: assError } = await supabaseClient
             .from('assinaturas')
             .select('dispositivos_usados')
@@ -304,16 +304,12 @@ async function removerDispositivo(deviceId, assinaturaId, elementoHtml) {
         
         if (!assError && assinatura) {
             var novosUsados = Math.max(0, assinatura.dispositivos_usados - 1);
-            
             await supabaseClient
                 .from('assinaturas')
-                .update({ 
-                    dispositivos_usados: novosUsados,
-                    updated_at: new Date().toISOString()
-                })
+                .update({ dispositivos_usados: novosUsados })
                 .eq('id', assinaturaId);
-            
-            // ✅ ATUALIZAR O TEXTO DO CONTADOR NA TELA IMEDIATAMENTE
+
+            // Atualizar o texto do contador na tela imediatamente
             var contadorTexto = document.querySelector('#modal-body .modal-sub');
             if (contadorTexto) {
                 var textoAtual = contadorTexto.innerText;
@@ -325,11 +321,11 @@ async function removerDispositivo(deviceId, assinaturaId, elementoHtml) {
             }
         }
         
-        console.log('[Dispositivo] ✅ Dispositivo removido com sucesso!');
+        console.log('[Dispositivo] ✅ Dispositivo removido.');
         
         // ✅ REMOVER O ELEMENTO DA TELA IMEDIATAMENTE
         if (elementoHtml && elementoHtml.parentElement) {
-            // Adiciona um pequeno efeito visual de fade out antes de remover
+            // Animação de fade out
             elementoHtml.style.transition = 'all 0.3s ease';
             elementoHtml.style.opacity = '0';
             elementoHtml.style.transform = 'scale(0.95)';
@@ -339,7 +335,7 @@ async function removerDispositivo(deviceId, assinaturaId, elementoHtml) {
                 toast('✅ Dispositivo removido!', 'success');
             }, 300);
         } else {
-            // Fallback: recarregar a lista se não encontrar o elemento
+            // Fallback: recarregar a lista inteira
             if (typeof gerenciarDispositivos === 'function') {
                 gerenciarDispositivos();
             }
@@ -349,11 +345,10 @@ async function removerDispositivo(deviceId, assinaturaId, elementoHtml) {
         
     } catch(e) {
         console.error('[Dispositivo] Erro:', e);
-        toast('Erro ao remover dispositivo', 'error');
+        toast('Erro ao remover dispositivo.', 'error');
         return false;
     }
 }
-
 // ============ LIMPAR DISPOSITIVOS INATIVOS ============
 
 async function limparDispositivosInativos(assinaturaId) {
