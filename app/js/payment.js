@@ -859,7 +859,7 @@ async function confirmarUpgradePago(pagamentoId, novosDispositivos) {
 }
 
 async function gerenciarDispositivos() {
-    // ✅ FORÇAR LIMPEZA DE CACHE DA TELA
+    // Força o recarregamento do modal
     var modalBody = document.getElementById('modal-body');
     if (modalBody) modalBody.innerHTML = '<div style="text-align:center;padding:20px;color:var(--text2)">Carregando...</div>';
     
@@ -875,12 +875,12 @@ async function gerenciarDispositivos() {
     }
     
     try {
-        // ✅ CORREÇÃO DEFINITIVA AQUI: Busca APENAS dispositivos com ativo = true
+        // ✅ BUSCA APENAS OS DISPOSITIVOS COM ativo = true
         var result = await supabaseClient
             .from('dispositivos')
             .select('*')
             .eq('assinatura_id', assinatura.id)
-            .eq('ativo', true)  // <--- ISSO É O QUE IMPORTA
+            .eq('ativo', true) 
             .order('ultimo_acesso', { ascending: false });
         
         var dispositivos = result.data || [];
@@ -905,13 +905,14 @@ async function gerenciarDispositivos() {
                 html += '<div class="item-name">' + tipoIcon + ' ' + (device.device_name || 'Dispositivo') + '</div>';
                 html += '<div class="item-detail">Último acesso: ' + ultimoAcesso + '</div>';
                 html += '</div>';
+                // Passa o "this" para a função de remover para sumir da tela na hora
                 html += '<button class="btn btn-sm btn-red" onclick="removerDispositivo(\'' + device.id + '\', \'' + assinatura.id + '\', this)">🗑️</button>';
                 html += '</div>';
             });
             html += '</div>';
         }
         
-        // Botão correto baseado na disponibilidade
+        // Botão de adicionar/upgrade baseado no limite
         if (dispositivos.length < assinatura.dispositivos_max) {
             html += '<button class="btn btn-primary" onclick="fecharModal(); fazerUpgradeDispositivos()">⬆️ Adicionar Dispositivo</button>';
         } else {
