@@ -865,7 +865,8 @@ async function gerenciarDispositivos() {
                 html += '<div class="item-name">' + tipoIcon + ' ' + (device.device_name || 'Dispositivo') + '</div>';
                 html += '<div class="item-detail">Último acesso: ' + ultimoAcesso + '</div>';
                 html += '</div>';
-                html += '<button class="btn btn-sm btn-red" onclick="removerDispositivo(\'' + device.id + '\')">🗑️</button>';
+                // Passa o ID da assinatura corretamente
+                html += '<button class="btn btn-sm btn-red" onclick="removerDispositivo(\'' + device.id + '\', \'' + assinatura.id + '\')">🗑️</button>';
                 html += '</div>';
             });
             html += '</div>';
