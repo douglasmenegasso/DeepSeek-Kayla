@@ -465,4 +465,66 @@ if (typeof window !== 'undefined') {
     carregarConfigEmpresa();
 }
 
+// ============ CANCELAMENTO DE ASSINATURA PRO ============
+
+async function cancelarAssinatura() {
+    if (!currentUser) {
+        toast('Faça login primeiro.', 'error');
+        return;
+    }
+
+    var assinatura = await getAssinaturaAtiva();
+    if (!assinatura) {
+        toast('Você não possui uma assinatura PRO ativa para cancelar.', 'error');
+        return;
+    }
+
+    // Confirmação simples para evitar cancelamentos acidentais
+    if (!confirm('⚠️ ATENÇÃO!\n\nVocê está prestes a CANCELAR sua assinatura PRO.\n\nIsso desativará todos os seus dispositivos e você perderá acesso aos recursos PRO imediatamente.\n\nDeseja continuar?')) {
+        return;
+    }
+
+    try {
+        // 1. Cancelar a assinatura no banco de dados
+        var { error: assinaturaError } = await supabaseClient
+            .from('assinaturas')
+            .update({ status: 'cancelada' })
+            .eq('id', assinatura.id);
+
+        if (assinaturaError) {
+            throw new Error('Erro ao cancelar assinatura: ' + assinaturaError.message);
+        }
+
+        // 2. Desativar TODOS os dispositivos ligados a essa assinatura
+        var { error: dispositivoError } = await supabaseClient
+            .from('dispositivos')
+            .update({ ativo: false })
+            .eq('assinatura_id', assinatura.id);
+
+        if (dispositivoError) {
+            console.warn('Erro ao desativar dispositivos:', dispositivoError);
+            // Não impede o cancelamento, apenas avisamos no console.
+        }
+
+        // 3. Limpar os dados do navegador e desativar o modo PRO local
+        localStorage.removeItem('kayla_pro');
+        localStorage.removeItem('kayla_pro_key');
+        localStorage.removeItem('kayla_pro_expires');
+        localStorage.removeItem('kayla_pro_devices');
+        LIMITES.proAtivo = false;
+
+        // 4. Atualizar a badge e recarregar a aba de configurações
+        atualizarBadgePlano();
+        toast('✅ Assinatura PRO cancelada com sucesso!', 'success');
+
+        if (typeof mudarAba === 'function') {
+            mudarAba('settings');
+        }
+
+    } catch (error) {
+        console.error('[CancelarAssinatura] Erro:', error);
+        toast('❌ Erro ao cancelar assinatura: ' + error.message, 'error');
+    }
+}
+
 console.log('✅ Subscription.js carregado');
