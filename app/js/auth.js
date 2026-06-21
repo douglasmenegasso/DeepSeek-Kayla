@@ -1,4 +1,4 @@
-// ============ AUTENTICAÇÃO (Versão Híbrida - Online + Offline Segura) ============
+// ============ AUTENTICAÇÃO (Versão Final - Sem bloqueio offline) ============
 
 function mostrarTelaSelecao() {
     document.getElementById('login-screen').style.display = 'flex';
@@ -41,47 +41,39 @@ async function verificarSessao() {
     if (lembrarMe === 'true') {
         var emailSalvo = localStorage.getItem('kayla_email');
         var userSalvo = localStorage.getItem('kayla_user');
-        var lastLogin = localStorage.getItem('kayla_last_login');
         
         if (userSalvo) {
             try {
                 var usuarioLocal = JSON.parse(userSalvo);
                 currentUser = usuarioLocal;
 
-                // ✅ LÓGICA HÍBRIDA DE SEGURANÇA
+                // ✅ SEGURANÇA: Verifica usuário APENAS se estiver ONLINE
                 if (isOnline && supabaseClient && usuarioLocal.id) {
-                    // MODO ONLINE: Verifica se o usuário ainda existe no Supabase
                     var { data: usuarioBanco, error } = await supabaseClient
                         .from('auth.users')
                         .select('id')
                         .eq('id', usuarioLocal.id)
                         .maybeSingle();
 
-                    // Se o usuário não existir mais no banco, força o logout
+                    // Se o usuário não existir no banco, força logout no Supabase e local
                     if (error || !usuarioBanco) {
                         console.warn('[SEGURANÇA] Usuário salvo não encontrado no banco. Realizando logout forçado.');
+                        
+                        // Força logout no Supabase
+                        if (supabaseClient) {
+                            try {
+                                await supabaseClient.auth.signOut();
+                            } catch (e) {
+                                console.warn('Erro ao fazer logout forçado no Supabase:', e);
+                            }
+                        }
+                        
                         realizarLogoutForcado();
                         return;
                     }
                     
                     // Se passou na verificação, atualiza a data do último login
                     localStorage.setItem('kayla_last_login', new Date().toISOString());
-                    
-                } else if (!isOnline) {
-                    // MODO OFFLINE: Permite acesso, mas verifica se o login não é muito antigo
-                    if (lastLogin) {
-                        var dataUltimoLogin = new Date(lastLogin);
-                        var hoje = new Date();
-                        var diasPassados = Math.ceil((hoje - dataUltimoLogin) / (1000 * 60 * 60 * 24));
-                        
-                        // Se estiver offline há mais de 30 dias, bloqueia o acesso
-                        if (diasPassados > 30) {
-                            console.warn('[SEGURANÇA] Login offline expirado (mais de 30 dias).');
-                            toast('Sessão offline expirada. Conecte-se à internet para revalidar.', 'warning');
-                            realizarLogoutForcado();
-                            return;
-                        }
-                    }
                 }
                 
                 // ✅ Verifica se ainda tem dispositivos ativos (se estiver online)
@@ -109,7 +101,7 @@ async function verificarSessao() {
                     }
                 }
                 
-                // Carrega os dados e mostra o app
+                // Carrega os dados e mostra o app (SEMPRE, mesmo offline)
                 if (isOnline && supabaseClient) {
                     try {
                         await carregarDados();
@@ -205,7 +197,6 @@ async function fazerLogin() {
                         if (lembrarMe) {
                             localStorage.setItem('kayla_lembrar_me', 'true');
                             localStorage.setItem('kayla_email', email);
-                            localStorage.setItem('kayla_last_login', new Date().toISOString());
                         }
                         
                         carregarDadosLocais();
@@ -273,7 +264,6 @@ async function fazerLogin() {
                     if (lembrarMe) {
                         localStorage.setItem('kayla_lembrar_me', 'true');
                         localStorage.setItem('kayla_email', email);
-                        localStorage.setItem('kayla_last_login', new Date().toISOString());
                     }
                     
                     carregarDadosLocais();
@@ -479,4 +469,4 @@ window.addEventListener('DOMContentLoaded', function() {
     }
 });
 
-console.log('✅ Auth.js carregado (Versão Híbrida Online/Offline)');
+console.log('✅ Auth.js carregado (Versão Final - Sem bloqueio offline)');
