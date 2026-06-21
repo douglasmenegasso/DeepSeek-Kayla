@@ -49,6 +49,31 @@ async function verificarSessao() {
                 currentUser = { email: emailSalvo, id: 'local' };
             }
             
+            // ✅ CORREÇÃO: Verifica se ainda tem dispositivos ativos
+            if (isOnline && supabaseClient && currentUser) {
+                try {
+                    var assinatura = await getAssinaturaAtiva();
+                    if (assinatura) {
+                        var countResult = await supabaseClient
+                            .from('dispositivos')
+                            .select('id', { count: 'exact', head: true })
+                            .eq('assinatura_id', assinatura.id)
+                            .eq('ativo', true);
+                        
+                        // Se não houver mais dispositivos ativos, derruba o PRO do localStorage
+                        if (countResult.count === 0 && !LIMITES.proAtivo) {
+                            localStorage.removeItem('kayla_pro');
+                            localStorage.removeItem('kayla_pro_key');
+                            localStorage.removeItem('kayla_pro_expires');
+                            localStorage.removeItem('kayla_pro_devices');
+                            LIMITES.proAtivo = false;
+                        }
+                    }
+                } catch(e) {
+                    console.warn('Erro ao verificar dispositivos na sessão:', e);
+                }
+            }
+            
             if (isOnline && supabaseClient) {
                 try {
                     await carregarDados();
