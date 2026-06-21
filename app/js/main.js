@@ -238,9 +238,10 @@ function renderizarConfig() {
         html += '<button class="btn btn-primary" onclick="mostrarInfoAssinatura()" style="margin-top:8px;width:100%">📋 Minha Assinatura</button>';
         html += '<button class="btn btn-outline" onclick="gerenciarDispositivos()" style="margin-top:8px;width:100%"> Gerenciar Dispositivos</button>';
         html += '<button class="btn btn-outline" onclick="fazerUpgradeDispositivos()" style="margin-top:8px;width:100%">⬆️ Adicionar Dispositivos</button>';
-        
-        // ✅ NOVO: Botão de Cancelamento/Downgrade (adicione isso)
         html += '<button class="btn btn-outline" onclick="iniciarCancelamentoDispositivos()" style="margin-top:8px;width:100%">📉 Reduzir Dispositivos</button>';
+        
+        // NOVO BOTÃO: Cancelar Assinatura PRO
+        html += '<button class="btn btn-red" onclick="cancelarAssinatura()" style="margin-top:8px;width:100%">🚫 Cancelar Assinatura PRO</button>';
         
         // Backup (APENAS PRO)
         html += '<div class="form-group" style="margin-top:16px">';
@@ -298,7 +299,11 @@ function renderizarConfig() {
     // Botão de instalação PWA
     html += '<div id="pwa-install-container" style="margin-top:12px"></div>';
     
-    html += '<button class="btn btn-red" onclick="fazerLogout()" style="margin-top:12px;width:100%">🚪 Sair</button></div>';
+    // NOVO BOTÃO: Excluir Conta (LGPD)
+    html += '<button class="btn btn-red" onclick="excluirConta()" style="margin-top:12px;width:100%;border:1px solid var(--error);background:transparent;color:var(--error);font-weight:700">🗑️ Excluir Conta e Todos os Dados</button>';
+    
+    // Botão de Sair
+    html += '<button class="btn btn-red" onclick="fazerLogout()" style="margin-top:8px;width:100%">🚪 Sair</button></div>';
     
     return html;
 }
