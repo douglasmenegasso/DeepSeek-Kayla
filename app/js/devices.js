@@ -258,7 +258,7 @@ async function listarDispositivos(assinaturaId) {
 
 // ============ REMOVER DISPOSITIVO ============
 
-async function removerDispositivo(deviceId, assinaturaId) {
+async function removerDispositivo(deviceId, assinaturaId, elementoHtml) {
     if (!currentUser || !supabaseClient) {
         toast('Faça login primeiro', 'error');
         return false;
@@ -286,7 +286,7 @@ async function removerDispositivo(deviceId, assinaturaId) {
             .from('dispositivos')
             .update({ ativo: false })
             .eq('id', deviceId)
-            .eq('assinatura_id', assinaturaId); // AGORA O CÓDIGO USA O ID CORRETO
+            .eq('assinatura_id', assinaturaId);
         
         if (error) {
             console.error('[Dispositivo] Erro ao remover:', error);
@@ -294,7 +294,7 @@ async function removerDispositivo(deviceId, assinaturaId) {
             return false;
         }
         
-        // Atualizar contador de dispositivos usados
+        // Atualizar contador de dispositivos usados no banco
         var { data: assinatura, error: assError } = await supabaseClient
             .from('assinaturas')
             .select('dispositivos_usados')
@@ -311,13 +311,37 @@ async function removerDispositivo(deviceId, assinaturaId) {
                     updated_at: new Date().toISOString()
                 })
                 .eq('id', assinaturaId);
+            
+            // ✅ ATUALIZAR O TEXTO DO CONTADOR NA TELA IMEDIATAMENTE
+            var contadorTexto = document.querySelector('#modal-body .modal-sub');
+            if (contadorTexto) {
+                var textoAtual = contadorTexto.innerText;
+                var match = textoAtual.match(/(\d+)\s+de\s+(\d+)/);
+                if (match) {
+                    var max = parseInt(match[2]);
+                    contadorTexto.innerText = novosUsados + ' de ' + max + ' dispositivos em uso';
+                }
+            }
         }
         
         console.log('[Dispositivo] ✅ Dispositivo removido');
         
-        // Recarregar a lista de dispositivos para atualizar a tela
-        if (typeof gerenciarDispositivos === 'function') {
-            gerenciarDispositivos();
+        // ✅ REMOVER O ELEMENTO DA TELA IMEDIATAMENTE
+        if (elementoHtml && elementoHtml.parentElement) {
+            // Adiciona um pequeno efeito visual de fade out antes de remover
+            elementoHtml.style.transition = 'all 0.3s ease';
+            elementoHtml.style.opacity = '0';
+            elementoHtml.style.transform = 'scale(0.95)';
+            
+            setTimeout(function() {
+                elementoHtml.remove();
+                toast('✅ Dispositivo removido!', 'success');
+            }, 300);
+        } else {
+            // Fallback: recarregar a lista se não encontrar o elemento
+            if (typeof gerenciarDispositivos === 'function') {
+                gerenciarDispositivos();
+            }
         }
         
         return true;
