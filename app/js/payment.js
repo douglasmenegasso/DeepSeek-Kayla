@@ -825,14 +825,12 @@ async function confirmarUpgradePago(pagamentoId, novosDispositivos) {
 }
 
 async function gerenciarDispositivos() {
+    // ✅ FORÇAR LIMPEZA DE CACHE DA TELA
+    var modalBody = document.getElementById('modal-body');
+    if (modalBody) modalBody.innerHTML = '<div style="text-align:center;padding:20px;color:var(--text2)">Carregando...</div>';
+    
     if (!currentUser || !supabaseClient) {
         toast('Faça login primeiro', 'error');
-        return;
-    }
-    
-    var assinatura = await getAssinaturaAtiva();
-    if (!assinatura) {
-        toast('Nenhuma assinatura ativa', 'error');
         return;
     }
     
