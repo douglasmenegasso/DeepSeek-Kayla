@@ -215,14 +215,30 @@ async function fazerLogin() {
                     }
                 }
                 
-                // Se não conseguiu offline, mostra erro amigável
-                if (errorMsg.toLowerCase().includes('invalid login credentials') || 
-                    errorMsg.toLowerCase().includes('bad request')) {
-                    toast('E-mail ou senha incorretos!', 'error');
-                } else if (errorMsg.toLowerCase().includes('email not confirmed')) {
-                    toast('Confirme seu e-mail antes de entrar', 'warning');
+                // ✅ SE ESTIVER ONLINE E DER ERRO, SUGERE O CADASTRO AUTOMATICAMENTE
+                if (isOnline) {
+                    var erroSenha = errorMsg.toLowerCase().includes('invalid login credentials') || 
+                                     errorMsg.toLowerCase().includes('bad request');
+
+                    if (erroSenha) {
+                        toast('E-mail não encontrado. Vamos criar sua conta agora?', 'warning');
+                        fecharModal(); // Fecha o modal de login
+                        
+                        // Aguarda 1 segundo e abre o modal de cadastro
+                        setTimeout(function() {
+                            abrirCadastro();
+                        }, 1000);
+                        
+                        if (btn) {
+                            btn.innerText = textoOriginal;
+                            btn.disabled = false;
+                        }
+                        return;
+                    } else {
+                        toast('Erro: ' + errorMsg, 'error');
+                    }
                 } else {
-                    toast('Erro: ' + errorMsg, 'error');
+                    toast('Erro de conexão. Verifique sua internet.', 'error');
                 }
                 
                 console.error('[AUTH] Erro login:', result.error);
@@ -244,7 +260,6 @@ async function fazerLogin() {
                 }
                 
                 await loginSucesso(result.data.user, lembrarMe);
-                // await verificarAcessoApp(); (removido)
             } else {
                 toast('Erro ao fazer login', 'error');
             }
@@ -293,7 +308,6 @@ async function fazerLogin() {
         btn.disabled = false;
     }
 }
-
 async function loginSucesso(user, lembrarMe) {
     console.log('[AUTH] Login sucesso:', user.email);
     
