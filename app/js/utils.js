@@ -309,4 +309,53 @@ function salvarConfiguracoesEmpresa() {
     fecharModal();
 }
 
+// ============ EXCLUSÃO DEFINITIVA DE CONTA (LGPD) ============
+
+async function excluirConta() {
+    if (!currentUser || !supabaseClient) {
+        toast('Nenhum usuário logado.', 'error');
+        return;
+    }
+
+    // 1. Confirmação dupla com aviso claro sobre a LGPD e exclusão irreversível
+    var confirmacao1 = confirm('⚠️ ATENÇÃO! Isso atende à Lei Geral de Proteção de Dados (LGPD).\n\nAo confirmar, TODOS os seus dados (cadastro, clientes, produtos, pedidos e assinaturas) serão EXCLUÍDOS PERMANENTEMENTE.\n\nEsta ação é IRREVERSÍVEL e você perderá acesso ao app.\n\nDeseja continuar?');
+    if (!confirmacao1) return;
+
+    var confirmacao2 = confirm('🔴 CONFIRMAÇÃO FINAL\n\nVocê tem certeza absoluta que deseja excluir sua conta e todos os dados do Kayla?\n\nNão há como recuperar essas informações.');
+    if (!confirmacao2) return;
+
+    // 2. Envia o pedido para a Edge Function que criamos no Supabase
+    try {
+        var response = await fetch('https://xwwklngrkvdwgiinycvt.supabase.co/functions/v1/delete-user', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': 'Bearer ' + SUPABASE_KEY
+            },
+            body: JSON.stringify({ userId: currentUser.id })
+        });
+
+        var resultado = await response.json();
+
+        if (resultado.success) {
+            // 3. Força o logout no navegador e limpa tudo
+            await supabaseClient.auth.signOut();
+            localStorage.clear();
+            currentUser = null;
+            clienteAtual = null;
+            pedidoItens = [];
+            LIMITES.proAtivo = false;
+
+            mostrarTelaSelecao();
+            toast('✅ Dados excluídos com sucesso!', 'success');
+        } else {
+            toast('❌ Erro: ' + (resultado.error || 'Falha na exclusão.'), 'error');
+        }
+
+    } catch (error) {
+        console.error('Erro na exclusão:', error);
+        toast('Erro de conexão ao deletar a conta.', 'error');
+    }
+}
+
 console.log('✅ Utils.js carregado');
