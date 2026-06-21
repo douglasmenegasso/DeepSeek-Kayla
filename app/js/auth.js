@@ -1,4 +1,4 @@
-// ============ AUTENTICAÇÃO (Versão Final - Sem bloqueio offline) ============
+// ============ AUTENTICAÇÃO (Versão Final - Com Nome e Boas-Vindas) ============
 
 function mostrarTelaSelecao() {
     document.getElementById('login-screen').style.display = 'flex';
@@ -308,14 +308,20 @@ async function fazerLogin() {
         btn.disabled = false;
     }
 }
+
 async function loginSucesso(user, lembrarMe) {
     console.log('[AUTH] Login sucesso:', user.email);
+    
+    // Pega o nome salvo no metadata do Supabase
+    var nomeUsuario = user.user_metadata?.name || user.email.split('@')[0];
+    user.name = nomeUsuario; // Adiciona o nome ao objeto do usuário
     
     currentUser = user;
     
     try {
         localStorage.setItem('kayla_user', JSON.stringify(user));
         localStorage.setItem('kayla_email', user.email);
+        localStorage.setItem('kayla_name', nomeUsuario); // Salva o nome separadamente
         localStorage.setItem('kayla_last_login', new Date().toISOString());
         
         if (lembrarMe) {
@@ -339,7 +345,7 @@ async function loginSucesso(user, lembrarMe) {
     await verificarStatusPro(); 
     
     fecharModal();
-    toast('Bem-vindo!', 'success');
+    toast('Bem-vindo, ' + nomeUsuario + '!', 'success');
     mostrarApp();
     atualizarBadgePlano();
     
@@ -367,6 +373,7 @@ async function fazerLogout() {
     localStorage.removeItem('kayla_pro_key');
     localStorage.removeItem('kayla_pro_expires');
     localStorage.removeItem('kayla_pro_devices');
+    localStorage.removeItem('kayla_name');
     localStorage.removeItem('perfilAcesso');
     
     currentUser = null;
@@ -483,4 +490,4 @@ window.addEventListener('DOMContentLoaded', function() {
     }
 });
 
-console.log('✅ Auth.js carregado (Versão Final - Sem bloqueio offline)');
+console.log('✅ Auth.js carregado (Versão Final - Com Nome e Boas-Vindas)');
