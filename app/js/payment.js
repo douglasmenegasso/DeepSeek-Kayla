@@ -875,11 +875,12 @@ async function gerenciarDispositivos() {
     }
     
     try {
+        // ✅ CORREÇÃO DEFINITIVA AQUI: Busca APENAS dispositivos com ativo = true
         var result = await supabaseClient
             .from('dispositivos')
             .select('*')
             .eq('assinatura_id', assinatura.id)
-            .eq('ativo', true) 
+            .eq('ativo', true)  // <--- ISSO É O QUE IMPORTA
             .order('ultimo_acesso', { ascending: false });
         
         var dispositivos = result.data || [];
@@ -910,6 +911,7 @@ async function gerenciarDispositivos() {
             html += '</div>';
         }
         
+        // Botão correto baseado na disponibilidade
         if (dispositivos.length < assinatura.dispositivos_max) {
             html += '<button class="btn btn-primary" onclick="fecharModal(); fazerUpgradeDispositivos()">⬆️ Adicionar Dispositivo</button>';
         } else {
