@@ -837,17 +837,19 @@ async function gerenciarDispositivos() {
     }
     
     try {
+        // ✅ CORREÇÃO AQUI: Busca APENAS os dispositivos com ativo = true
         var result = await supabaseClient
             .from('dispositivos')
             .select('*')
             .eq('assinatura_id', assinatura.id)
+            .eq('ativo', true) 
             .order('ultimo_acesso', { ascending: false });
         
         var dispositivos = result.data || [];
         
         var html = '<div class="modal-handle"></div>';
         html += '<div class="modal-title">📱 Dispositivos</div>';
-        html += '<div class="modal-sub">' + assinatura.dispositivos_usados + ' de ' + assinatura.dispositivos_max + ' dispositivos em uso</div>';
+        html += '<div class="modal-sub">' + dispositivos.length + ' de ' + assinatura.dispositivos_max + ' dispositivos em uso</div>';
         
         if (dispositivos.length === 0) {
             html += '<div class="card" style="background:var(--bg3);padding:20px;text-align:center">';
@@ -865,14 +867,14 @@ async function gerenciarDispositivos() {
                 html += '<div class="item-name">' + tipoIcon + ' ' + (device.device_name || 'Dispositivo') + '</div>';
                 html += '<div class="item-detail">Último acesso: ' + ultimoAcesso + '</div>';
                 html += '</div>';
-                // Passa o ID da assinatura corretamente
                 html += '<button class="btn btn-sm btn-red" onclick="removerDispositivo(\'' + device.id + '\', \'' + assinatura.id + '\', this)">🗑️</button>';
                 html += '</div>';
             });
             html += '</div>';
         }
         
-        if (assinatura.dispositivos_usados < assinatura.dispositivos_max) {
+        // Botão correto baseado na disponibilidade
+        if (dispositivos.length < assinatura.dispositivos_max) {
             html += '<button class="btn btn-primary" onclick="fecharModal(); fazerUpgradeDispositivos()">⬆️ Adicionar Dispositivo</button>';
         } else {
             html += '<button class="btn btn-primary" onclick="fecharModal(); fazerUpgradeDispositivos()">⬆️ Fazer Upgrade</button>';
