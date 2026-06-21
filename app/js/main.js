@@ -234,14 +234,20 @@ function renderizarConfig() {
         
         html += '<div class="form-group"><label class="form-label">📅 Validade</label><div style="background:var(--bg3);padding:12px;border-radius:8px;margin-bottom:12px;text-align:center;font-weight:600;color:var(--accent)">' + expDate + '</div></div>';
         
-        // Botões de gerenciamento PRO
+               // Botões de gerenciamento PRO
         html += '<button class="btn btn-primary" onclick="mostrarInfoAssinatura()" style="margin-top:8px;width:100%">📋 Minha Assinatura</button>';
         html += '<button class="btn btn-outline" onclick="gerenciarDispositivos()" style="margin-top:8px;width:100%"> Gerenciar Dispositivos</button>';
         html += '<button class="btn btn-outline" onclick="fazerUpgradeDispositivos()" style="margin-top:8px;width:100%">⬆️ Adicionar Dispositivos</button>';
         html += '<button class="btn btn-outline" onclick="iniciarCancelamentoDispositivos()" style="margin-top:8px;width:100%">📉 Reduzir Dispositivos</button>';
         
-        // NOVO BOTÃO: Cancelar Assinatura PRO
+        // Cancelar Assinatura
         html += '<button class="btn btn-red" onclick="cancelarAssinatura()" style="margin-top:8px;width:100%">🚫 Cancelar Assinatura PRO</button>';
+
+        // 🔥 Renovar Assinatura
+        html += '<button class="btn btn-primary" onclick="iniciarRenovacao()" style="margin-top:8px;width:100%">🔄 Renovar Assinatura</button>';
+
+        // Backup (APENAS PRO)
+        html += '<div class="form-group" style="margin-top:16px">';
         
         // Backup (APENAS PRO)
         html += '<div class="form-group" style="margin-top:16px">';
