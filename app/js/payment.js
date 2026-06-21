@@ -891,37 +891,7 @@ async function gerenciarDispositivos() {
     }
 }
 
-async function removerDispositivo(deviceId) {
-    confirmar('Remover Dispositivo', 'Deseja realmente remover este dispositivo? Ele perderá acesso ao plano PRO.', async function(confirmed) {
-        if (!confirmed) return;
-        
-        if (!currentUser || !supabaseClient) return;
-        
-        try {
-            var assinatura = await getAssinaturaAtiva();
-            if (!assinatura) return;
-            
-            await supabaseClient
-                .from('dispositivos')
-                .delete()
-                .eq('id', deviceId);
-            
-            await supabaseClient
-                .from('assinaturas')
-                .update({ 
-                    dispositivos_usados: Math.max(0, assinatura.dispositivos_usados - 1)
-                })
-                .eq('id', assinatura.id);
-            
-            toast('✅ Dispositivo removido', 'success');
-            gerenciarDispositivos();
-            
-        } catch(e) {
-            console.error('Erro ao remover dispositivo:', e);
-            toast('Erro ao remover', 'error');
-        }
-    });
-}
+
 
 // ============ CANCELAMENTO / DOWNGRADE DE DISPOSITIVOS ============
 
