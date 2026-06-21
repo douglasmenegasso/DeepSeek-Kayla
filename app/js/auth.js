@@ -1,4 +1,4 @@
-// ============ AUTENTICAÇÃO (Versão Segura) ============
+// ============ AUTENTICAÇÃO (Versão Híbrida - Online + Offline Segura) ============
 
 function mostrarTelaSelecao() {
     document.getElementById('login-screen').style.display = 'flex';
@@ -41,54 +41,116 @@ async function verificarSessao() {
     if (lembrarMe === 'true') {
         var emailSalvo = localStorage.getItem('kayla_email');
         var userSalvo = localStorage.getItem('kayla_user');
+        var lastLogin = localStorage.getItem('kayla_last_login');
         
         if (userSalvo) {
             try {
-                currentUser = JSON.parse(userSalvo);
-            } catch(e) {
-                currentUser = { email: emailSalvo, id: 'local' };
-            }
-            
-            // ✅ CORREÇÃO: Verifica se ainda tem dispositivos ativos
-            if (isOnline && supabaseClient && currentUser) {
-                try {
-                    var assinatura = await getAssinaturaAtiva();
-                    if (assinatura) {
-                        var countResult = await supabaseClient
-                            .from('dispositivos')
-                            .select('id', { count: 'exact', head: true })
-                            .eq('assinatura_id', assinatura.id)
-                            .eq('ativo', true);
+                var usuarioLocal = JSON.parse(userSalvo);
+                currentUser = usuarioLocal;
+
+                // ✅ LÓGICA HÍBRIDA DE SEGURANÇA
+                if (isOnline && supabaseClient && usuarioLocal.id) {
+                    // MODO ONLINE: Verifica se o usuário ainda existe no Supabase
+                    var { data: usuarioBanco, error } = await supabaseClient
+                        .from('auth.users')
+                        .select('id')
+                        .eq('id', usuarioLocal.id)
+                        .maybeSingle();
+
+                    // Se o usuário não existir mais no banco, força o logout
+                    if (error || !usuarioBanco) {
+                        console.warn('[SEGURANÇA] Usuário salvo não encontrado no banco. Realizando logout forçado.');
+                        realizarLogoutForcado();
+                        return;
+                    }
+                    
+                    // Se passou na verificação, atualiza a data do último login
+                    localStorage.setItem('kayla_last_login', new Date().toISOString());
+                    
+                } else if (!isOnline) {
+                    // MODO OFFLINE: Permite acesso, mas verifica se o login não é muito antigo
+                    if (lastLogin) {
+                        var dataUltimoLogin = new Date(lastLogin);
+                        var hoje = new Date();
+                        var diasPassados = Math.ceil((hoje - dataUltimoLogin) / (1000 * 60 * 60 * 24));
                         
-                        // Se não houver mais dispositivos ativos, derruba o PRO do localStorage
-                        if (countResult.count === 0 && !LIMITES.proAtivo) {
-                            localStorage.removeItem('kayla_pro');
-                            localStorage.removeItem('kayla_pro_key');
-                            localStorage.removeItem('kayla_pro_expires');
-                            localStorage.removeItem('kayla_pro_devices');
-                            LIMITES.proAtivo = false;
+                        // Se estiver offline há mais de 30 dias, bloqueia o acesso
+                        if (diasPassados > 30) {
+                            console.warn('[SEGURANÇA] Login offline expirado (mais de 30 dias).');
+                            toast('Sessão offline expirada. Conecte-se à internet para revalidar.', 'warning');
+                            realizarLogoutForcado();
+                            return;
                         }
                     }
-                } catch(e) {
-                    console.warn('Erro ao verificar dispositivos na sessão:', e);
                 }
-            }
-            
-            if (isOnline && supabaseClient) {
-                try {
-                    await carregarDados();
-                } catch(e) {
-                    console.warn('Falha ao sincronizar, usando dados locais');
+                
+                // ✅ Verifica se ainda tem dispositivos ativos (se estiver online)
+                if (isOnline && supabaseClient && currentUser) {
+                    try {
+                        var assinatura = await getAssinaturaAtiva();
+                        if (assinatura) {
+                            var countResult = await supabaseClient
+                                .from('dispositivos')
+                                .select('id', { count: 'exact', head: true })
+                                .eq('assinatura_id', assinatura.id)
+                                .eq('ativo', true);
+                            
+                            // Se não houver mais dispositivos ativos, derruba o PRO do localStorage
+                            if (countResult.count === 0 && !LIMITES.proAtivo) {
+                                localStorage.removeItem('kayla_pro');
+                                localStorage.removeItem('kayla_pro_key');
+                                localStorage.removeItem('kayla_pro_expires');
+                                localStorage.removeItem('kayla_pro_devices');
+                                LIMITES.proAtivo = false;
+                            }
+                        }
+                    } catch(e) {
+                        console.warn('Erro ao verificar dispositivos na sessão:', e);
+                    }
                 }
-            } else {
-                carregarDadosLocais();
+                
+                // Carrega os dados e mostra o app
+                if (isOnline && supabaseClient) {
+                    try {
+                        await carregarDados();
+                    } catch(e) {
+                        console.warn('Falha ao sincronizar, usando dados locais');
+                    }
+                } else {
+                    carregarDadosLocais();
+                }
+                
+                mostrarApp();
+                return;
+                
+            } catch(e) {
+                console.error('Erro ao restaurar sessão:', e);
+                // Se der erro ao ler o JSON, apaga e manda pro login
+                localStorage.removeItem('kayla_user');
+                localStorage.removeItem('kayla_email');
+                localStorage.removeItem('kayla_lembrar_me');
+                mostrarTelaSelecao();
             }
-            
-            mostrarApp();
-            return;
         }
     }
     
+    mostrarTelaSelecao();
+}
+
+// Função auxiliar para realizar logout forçado
+function realizarLogoutForcado() {
+    localStorage.removeItem('kayla_lembrar_me');
+    localStorage.removeItem('kayla_email');
+    localStorage.removeItem('kayla_user');
+    localStorage.removeItem('kayla_access_token');
+    localStorage.removeItem('kayla_refresh_token');
+    localStorage.removeItem('kayla_last_login');
+    localStorage.removeItem('kayla_pro');
+    localStorage.removeItem('kayla_pro_key');
+    localStorage.removeItem('kayla_pro_expires');
+    localStorage.removeItem('kayla_pro_devices');
+    currentUser = null;
+    LIMITES.proAtivo = false;
     mostrarTelaSelecao();
 }
 
@@ -143,6 +205,7 @@ async function fazerLogin() {
                         if (lembrarMe) {
                             localStorage.setItem('kayla_lembrar_me', 'true');
                             localStorage.setItem('kayla_email', email);
+                            localStorage.setItem('kayla_last_login', new Date().toISOString());
                         }
                         
                         carregarDadosLocais();
@@ -182,16 +245,15 @@ async function fazerLogin() {
             
             // Login online sucesso
             if (result.data && result.data.user) {
-                // NOVO: Salva sessão SEM senha
+                // Salva sessão SEM senha
                 var session = result.data.session;
                 if (session) {
-                    // Salva o token de acesso
                     localStorage.setItem('kayla_access_token', session.access_token);
                     localStorage.setItem('kayla_refresh_token', session.refresh_token);
                 }
                 
                 await loginSucesso(result.data.user, lembrarMe);
-                // await verificarAcessoApp();
+                // await verificarAcessoApp(); (removido)
             } else {
                 toast('Erro ao fazer login', 'error');
             }
@@ -211,6 +273,7 @@ async function fazerLogin() {
                     if (lembrarMe) {
                         localStorage.setItem('kayla_lembrar_me', 'true');
                         localStorage.setItem('kayla_email', email);
+                        localStorage.setItem('kayla_last_login', new Date().toISOString());
                     }
                     
                     carregarDadosLocais();
@@ -247,9 +310,9 @@ async function loginSucesso(user, lembrarMe) {
     currentUser = user;
     
     try {
-        // Salva apenas dados do usuário, NUNCA a senha
         localStorage.setItem('kayla_user', JSON.stringify(user));
         localStorage.setItem('kayla_email', user.email);
+        localStorage.setItem('kayla_last_login', new Date().toISOString());
         
         if (lembrarMe) {
             localStorage.setItem('kayla_lembrar_me', 'true');
@@ -268,9 +331,8 @@ async function loginSucesso(user, lembrarMe) {
         carregarDadosLocais();
     }
 
-    // ✅ CORREÇÃO AQUI: Verifica se o usuário tem assinatura PRO no Supabase
+    // Verifica se o usuário tem assinatura PRO no Supabase
     await verificarStatusPro(); 
-    // ✅ FIM DA CORREÇÃO
     
     fecharModal();
     toast('Bem-vindo!', 'success');
@@ -283,7 +345,6 @@ async function loginSucesso(user, lembrarMe) {
 async function fazerLogout() {
     console.log('[AUTH] Logout iniciado');
     
-    // Limpa sessão no Supabase
     if (supabaseClient && isOnline) {
         try {
             await supabaseClient.auth.signOut();
@@ -292,17 +353,22 @@ async function fazerLogout() {
         }
     }
     
-    // Limpa todos os dados locais
     localStorage.removeItem('kayla_lembrar_me');
     localStorage.removeItem('kayla_email');
     localStorage.removeItem('kayla_user');
-    localStorage.removeItem('kayla_access_token'); // Limpa token
-    localStorage.removeItem('kayla_refresh_token'); // Limpa token
+    localStorage.removeItem('kayla_access_token');
+    localStorage.removeItem('kayla_refresh_token');
+    localStorage.removeItem('kayla_last_login');
+    localStorage.removeItem('kayla_pro');
+    localStorage.removeItem('kayla_pro_key');
+    localStorage.removeItem('kayla_pro_expires');
+    localStorage.removeItem('kayla_pro_devices');
     localStorage.removeItem('perfilAcesso');
     
     currentUser = null;
     clienteAtual = null;
     pedidoItens = [];
+    LIMITES.proAtivo = false;
     
     toast('Logout realizado', 'success');
     
@@ -413,4 +479,4 @@ window.addEventListener('DOMContentLoaded', function() {
     }
 });
 
-console.log('✅ Auth.js carregado (Versão Segura)');
+console.log('✅ Auth.js carregado (Versão Híbrida Online/Offline)');
