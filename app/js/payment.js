@@ -1098,4 +1098,179 @@ function iniciarCancelamentoDispositivos() {
 
 console.log('✅ Funções de cancelamento/downgrade carregadas');
 
+// ============ RENOVAÇÃO INTELIGENTE DE ASSINATURA ============
+
+// Função que inicia o processo de renovação
+function iniciarRenovacao() {
+    if (!currentUser) {
+        toast('Faça login primeiro', 'error');
+        return;
+    }
+    
+    getAssinaturaAtiva().then(function(assinatura) {
+        if (!assinatura) {
+            toast('Nenhuma assinatura ativa para renovar', 'error');
+            return;
+        }
+        
+        var dataFim = new Date(assinatura.data_fim);
+        var hoje = new Date();
+        var diasRestantes = Math.ceil((dataFim - hoje) / (1000 * 60 * 60 * 24));
+        
+        if (diasRestantes > 15) {
+            toast('⚠️ Sua assinatura ainda tem mais de 15 dias. Renove apenas quando faltar menos.', 'warning');
+            return;
+        }
+        
+        // Buscar informações do plano
+        var planoNome = 'Plano PRO';
+        var precoBase = 0;
+        var precoPorDevice = 5.00;
+        
+        // Ver se há créditos disponíveis
+        var valorCredito = 0;
+        supabaseClient
+            .from('creditos')
+            .select('valor')
+            .eq('user_id', currentUser.id)
+            .eq('utilizado', false)
+            .then(function(result) {
+                if (result.data && result.data.length > 0) {
+                    result.data.forEach(function(cred) {
+                        valorCredito += cred.valor;
+                    });
+                }
+                
+                // Mostrar tela de renovação
+                mostrarTelaRenovacao(assinatura, planoNome, precoBase, precoPorDevice, valorCredito, diasRestantes);
+            });
+    });
+}
+
+function mostrarTelaRenovacao(assinatura, planoNome, precoBase, precoPorDevice, valorCredito, diasRestantes) {
+    var html = '<div class="modal-handle"></div>';
+    html += '<div class="modal-title">🔄 Renovar Assinatura</div>';
+    html += '<div class="modal-sub">Atual: ' + assinatura.dispositivos_max + ' dispositivo(s)</div>';
+    html += '<div style="font-size:12px;color:var(--text2);text-align:center;margin-bottom:12px">Dias restantes: <strong>' + diasRestantes + '</strong></div>';
+    
+    if (valorCredito > 0) {
+        html += '<div style="background:var(--success);color:#fff;padding:8px;border-radius:8px;text-align:center;margin-bottom:12px;font-size:13px">💰 Você tem R$ ' + valorCredito.toFixed(2).replace('.', ',') + ' em crédito! O valor será descontado automaticamente.</div>';
+    }
+    
+    html += '<div class="card" style="background:var(--bg3);padding:16px;margin-bottom:16px">';
+    html += '<div style="font-size:13px;color:var(--text2);margin-bottom:12px;text-align:center">Escolha quantos dispositivos deseja renovar:</div>';
+    
+    for (var i = 1; i <= 5; i++) {
+        var precoFinal = (i * precoBase) + ((i - 1) * precoPorDevice);
+        var precoComDesconto = Math.max(0, precoFinal - valorCredito);
+        
+        var destaque = i === assinatura.dispositivos_max ? 'border:2px solid var(--accent);' : '';
+        var descricao = i === assinatura.dispositivos_max ? ' 🔁 Mesmo plano' : (i > assinatura.dispositivos_max ? ' ⬆️ Upgrade' : ' ⬇️ Downgrade');
+        
+        html += '<div class="item-card" style="margin-bottom:8px;cursor:pointer;' + destaque + '" onclick="confirmarRenovacao(' + i + ', ' + precoComDesconto + ')">';
+        html += '<div class="item-info">';
+        html += '<div class="item-name">' + i + ' dispositivo(s)' + descricao + '</div>';
+        html += '<div class="item-detail">' + (i > 0 ? 'R$ ' + (i * precoBase).toFixed(2).replace('.', ',') + ' + extras' : '') + '</div>';
+        html += '</div>';
+        html += '<div style="font-weight:700;color:var(--accent);font-size:16px">R$ ' + precoFinal.toFixed(2).replace('.', ',') + '</div>';
+        if (precoComDesconto < precoFinal) {
+            html += '<div style="font-size:11px;color:var(--success);margin-left:8px">(-' + (precoFinal - precoComDesconto).toFixed(2).replace('.', ',') + ')</div>';
+        }
+        html += '</div>';
+    }
+    
+    html += '</div>';
+    html += '<button class="btn btn-outline" onclick="fecharModal()">Cancelar</button>';
+    
+    document.getElementById('modal-body').innerHTML = html;
+    document.getElementById('modal-overlay').classList.add('show');
+}
+
+async function confirmarRenovacao(novosDispositivos, valorPagar) {
+    if (!currentUser || !supabaseClient) {
+        toast('Erro de autenticação', 'error');
+        return;
+    }
+    
+    toast('Processando renovação...', 'warning');
+    
+    try {
+        // 1. Buscar assinatura ativa
+        var assinatura = await getAssinaturaAtiva();
+        if (!assinatura) {
+            toast('Assinatura não encontrada', 'error');
+            return;
+        }
+        
+        // 2. Calcular nova data de fim (30 dias a partir de hoje)
+        var novaDataFim = new Date();
+        novaDataFim.setDate(novaDataFim.getDate() + 30);
+        
+        // 3. Registrar pagamento
+        var pagamentoResult = await supabaseClient
+            .from('pagamentos')
+            .insert({
+                user_id: currentUser.id,
+                plano_id: assinatura.plano_id,
+                valor: valorPagar,
+                metodo_pagamento: 'renovacao',
+                status: 'aprovado',
+                data_pagamento: new Date().toISOString(),
+                metadata: {
+                    tipo: 'renovacao',
+                    assinatura_id: assinatura.id,
+                    novos_dispositivos: novosDispositivos
+                }
+            })
+            .select()
+            .single();
+        
+        if (pagamentoResult.error) {
+            toast('Erro ao registrar pagamento: ' + pagamentoResult.error.message, 'error');
+            return;
+        }
+        
+        // 4. Atualizar assinatura
+        var updateData = {
+            data_fim: novaDataFim.toISOString(),
+            dispositivos_max: novosDispositivos,
+            dispositivos_usados: Math.min(assinatura.dispositivos_usados, novosDispositivos),
+            updated_at: new Date().toISOString()
+        };
+        
+        var assinaturaResult = await supabaseClient
+            .from('assinaturas')
+            .update(updateData)
+            .eq('id', assinatura.id);
+        
+        if (assinaturaResult.error) {
+            toast('Erro ao renovar assinatura', 'error');
+            return;
+        }
+        
+        // 5. Utilizar créditos (se houver)
+        var creditosResult = await supabaseClient
+            .from('creditos')
+            .update({ utilizado: true })
+            .eq('user_id', currentUser.id)
+            .eq('utilizado', false);
+        
+        // 6. Atualizar localStorage
+        localStorage.setItem('kayla_pro_expires', novaDataFim.toISOString());
+        localStorage.setItem('kayla_pro_devices', Math.min(assinatura.dispositivos_usados, novosDispositivos) + '/' + novosDispositivos);
+        
+        fecharModal();
+        toast('✅ Assinatura renovada com sucesso!', 'success');
+        
+        // Recarregar configurações
+        if (typeof mudarAba === 'function') {
+            mudarAba('settings');
+        }
+        
+    } catch(e) {
+        console.error('[Renovação] Erro:', e);
+        toast('Erro ao renovar assinatura', 'error');
+    }
+}
+
 console.log('✅ Payments.js carregado');
