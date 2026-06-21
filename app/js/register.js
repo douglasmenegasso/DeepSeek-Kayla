@@ -1,25 +1,36 @@
-// ============ CADASTRO DE USUÁRIOS ============
+// ============ CADASTRO DE USUÁRIOS (Com Nome Obrigatório) ============
 
 function abrirCadastro(tipo) {
     perfilAtual = tipo;
     var html = '<div class="modal-handle"></div>';
-    html += '<div class="modal-title">' + (tipo === 'admin' ? '👑 Cadastrar Admin' : '👤 Cadastrar Usuário') + '</div>';
-    html += '<div class="modal-sub">Crie sua conta para acessar o sistema</div>';
+    html += '<div class="modal-title">' + (tipo === 'admin' ? '👑 Cadastrar Admin' : '📝 Criar Conta') + '</div>';
+    html += '<div class="modal-sub">Preencha seus dados</div>';
+    
+    // Campo Nome adicionado
+    html += '<div class="form-group"><label class="form-label">Nome *</label><input class="form-input" id="reg-nome" placeholder="Seu nome completo" onkeypress="if(event.key===\'Enter\')document.getElementById(\'reg-email\').focus()"></div>';
     html += '<div class="form-group"><label class="form-label">E-mail *</label><input class="form-input" id="reg-email" type="email" placeholder="seu@email.com" onkeypress="if(event.key===\'Enter\')document.getElementById(\'reg-senha\').focus()"></div>';
     html += '<div class="form-group"><label class="form-label">Senha *</label><input class="form-input" id="reg-senha" type="password" placeholder="Mínimo 6 caracteres" onkeypress="if(event.key===\'Enter\')document.getElementById(\'reg-senha2\').focus()"></div>';
     html += '<div class="form-group"><label class="form-label">Confirmar Senha *</label><input class="form-input" id="reg-senha2" type="password" placeholder="Repita a senha" onkeypress="if(event.key===\'Enter\')fazerCadastro()"></div>';
     html += '<div style="background:var(--bg3);padding:12px;border-radius:8px;margin-bottom:16px;font-size:12px;color:var(--text2)">💡 Dica: Use uma senha forte com pelo menos 6 caracteres</div>';
     html += '<button class="btn btn-primary" onclick="fazerCadastro()">✅ Criar Conta</button>';
-    html += '<button class="btn btn-outline" onclick="fecharModal()">Voltar para Login</button>';
+    html += '<button class="btn btn-outline" onclick="abrirLogin()">Já tenho conta</button>';
+    html += '<button class="btn btn-outline" onclick="mostrarTelaSelecao()">Voltar</button>';
+    
     document.getElementById('modal-body').innerHTML = html;
     document.getElementById('modal-overlay').classList.add('show');
-    setTimeout(function() { document.getElementById('reg-email').focus(); }, 100);
+    setTimeout(function() { document.getElementById('reg-nome').focus(); }, 100);
 }
 
 async function fazerCadastro() {
+    var nome = document.getElementById('reg-nome').value.trim();
     var email = document.getElementById('reg-email').value.trim();
     var senha = document.getElementById('reg-senha').value;
     var senha2 = document.getElementById('reg-senha2').value;
+    
+    if (!nome) { 
+        toast('Preencha seu nome completo', 'error'); 
+        return; 
+    }
     
     if (!email || !senha || !senha2) { 
         toast('Preencha todos os campos', 'error'); 
@@ -49,7 +60,12 @@ async function fazerCadastro() {
     try {
         var result = await supabaseClient.auth.signUp({ 
             email: email, 
-            password: senha 
+            password: senha,
+            options: {
+                data: {
+                    name: nome  // ✅ Salva o nome no Supabase (user_metadata)
+                }
+            }
         });
         
         if (result.error) {
@@ -84,6 +100,7 @@ async function fazerCadastro() {
                 if (loginResult.data && loginResult.data.user) {
                     localStorage.setItem('kayla_lembrar_me', 'true');
                     localStorage.setItem('kayla_email', email);
+                    // A função loginSucesso está no auth.js e vai ler o nome do Supabase
                     await loginSucesso(loginResult.data.user);
                 } else {
                     toast('Conta criada! Faça login para entrar.', 'success');
@@ -106,4 +123,4 @@ async function fazerCadastro() {
     btn.disabled = false;
 }
 
-console.log('✅ Register.js carregado');
+console.log('✅ Register.js carregado (Com Campo Nome)');
