@@ -264,12 +264,29 @@ async function removerDispositivo(deviceId, assinaturaId) {
         return false;
     }
     
+    // Verificação extra: se o ID da assinatura não foi passado, tenta buscar
+    if (!assinaturaId) {
+        try {
+            var assinatura = await getAssinaturaAtiva();
+            if (assinatura) {
+                assinaturaId = assinatura.id;
+            } else {
+                toast('Assinatura não encontrada. Recarregue a página.', 'error');
+                return false;
+            }
+        } catch(e) {
+            console.error('[Dispositivo] Erro ao buscar assinatura:', e);
+            toast('Erro ao buscar assinatura', 'error');
+            return false;
+        }
+    }
+    
     try {
         var { error } = await supabaseClient
             .from('dispositivos')
             .update({ ativo: false })
             .eq('id', deviceId)
-            .eq('assinatura_id', assinaturaId);
+            .eq('assinatura_id', assinaturaId); // AGORA O CÓDIGO USA O ID CORRETO
         
         if (error) {
             console.error('[Dispositivo] Erro ao remover:', error);
@@ -297,6 +314,12 @@ async function removerDispositivo(deviceId, assinaturaId) {
         }
         
         console.log('[Dispositivo] ✅ Dispositivo removido');
+        
+        // Recarregar a lista de dispositivos para atualizar a tela
+        if (typeof gerenciarDispositivos === 'function') {
+            gerenciarDispositivos();
+        }
+        
         return true;
         
     } catch(e) {
