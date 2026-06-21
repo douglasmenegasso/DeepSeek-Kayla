@@ -282,15 +282,16 @@ async function removerDispositivo(deviceId, assinaturaId, elementoHtml) {
     }
     
     try {
+        // ✅ CORREÇÃO: Envia a atualização com a coluna no nome EXATO do Supabase
         var { error } = await supabaseClient
             .from('dispositivos')
-            .update({ ativo: false })
+            .update({ ativo: false }) 
             .eq('id', deviceId)
             .eq('assinatura_id', assinaturaId);
         
         if (error) {
             console.error('[Dispositivo] Erro ao remover:', error);
-            toast('Erro ao remover dispositivo', 'error');
+            toast('Erro ao remover dispositivo: ' + error.message, 'error');
             return false;
         }
         
@@ -324,7 +325,7 @@ async function removerDispositivo(deviceId, assinaturaId, elementoHtml) {
             }
         }
         
-        console.log('[Dispositivo] ✅ Dispositivo removido');
+        console.log('[Dispositivo] ✅ Dispositivo removido com sucesso!');
         
         // ✅ REMOVER O ELEMENTO DA TELA IMEDIATAMENTE
         if (elementoHtml && elementoHtml.parentElement) {
