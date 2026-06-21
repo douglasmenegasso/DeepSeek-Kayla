@@ -239,6 +239,9 @@ function renderizarConfig() {
         html += '<button class="btn btn-outline" onclick="gerenciarDispositivos()" style="margin-top:8px;width:100%"> Gerenciar Dispositivos</button>';
         html += '<button class="btn btn-outline" onclick="fazerUpgradeDispositivos()" style="margin-top:8px;width:100%">⬆️ Adicionar Dispositivos</button>';
         
+        // ✅ NOVO: Botão de Cancelamento/Downgrade (adicione isso)
+        html += '<button class="btn btn-outline" onclick="iniciarCancelamentoDispositivos()" style="margin-top:8px;width:100%">📉 Reduzir Dispositivos</button>';
+        
         // Backup (APENAS PRO)
         html += '<div class="form-group" style="margin-top:16px">';
         html += '<label class="form-label">💾 Backup e Restauração <span class="badge-pro" style="font-size:10px">PRO</span></label>';
