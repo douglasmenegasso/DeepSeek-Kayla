@@ -920,4 +920,182 @@ async function removerDispositivo(deviceId) {
     });
 }
 
+// ============ CANCELAMENTO / DOWNGRADE DE DISPOSITIVOS ============
+
+async function cancelarDispositivos(novosDispositivos) {
+    if (!currentUser) {
+        toast('Faça login primeiro', 'error');
+        return;
+    }
+    
+    // Buscar assinatura ativa
+    var assinatura = await getAssinaturaAtiva();
+    if (!assinatura) {
+        toast('Nenhuma assinatura ativa encontrada', 'error');
+        return;
+    }
+    
+    // Verificar se o usuário quer reduzir
+    if (novosDispositivos >= assinatura.dispositivos_max) {
+        toast('Você só pode reduzir o número de dispositivos.', 'warning');
+        return;
+    }
+    
+    var dispositivosRemovidos = assinatura.dispositivos_max - novosDispositivos;
+    var diasRestantes = Math.ceil((new Date(assinatura.data_fim) - new Date()) / (1000 * 60 * 60 * 24));
+    var mesesRestantes = Math.ceil(diasRestantes / 30);
+    if (mesesRestantes < 1) mesesRestantes = 1;
+    
+    // Calcular crédito proporcional (cada dispositivo extra custa 5 reais por mês)
+    var valorPorMes = 5.00;
+    var valorCredito = dispositivosRemovidos * valorPorMes * mesesRestantes;
+    // Arredondar para 2 casas decimais
+    valorCredito = Math.round(valorCredito * 100) / 100;
+    
+    // Montar modal de confirmação
+    var html = '<div class="modal-handle"></div>';
+    html += '<div class="modal-title">📉 Reduzir Dispositivos</div>';
+    html += '<div class="modal-sub">Você está reduzindo de ' + assinatura.dispositivos_max + ' para ' + novosDispositivos + ' dispositivo(s)</div>';
+    
+    html += '<div class="card" style="background:var(--bg3);padding:16px;margin-bottom:16px">';
+    html += '<div style="display:flex;justify-content:space-between;margin-bottom:8px">';
+    html += '<span style="color:var(--text2)">Dispositivos removidos:</span>';
+    html += '<strong>' + dispositivosRemovidos + '</strong>';
+    html += '</div>';
+    html += '<div style="display:flex;justify-content:space-between;margin-bottom:8px">';
+    html += '<span style="color:var(--text2)">Dias restantes:</span>';
+    html += '<strong>' + diasRestantes + ' dias</strong>';
+    html += '</div>';
+    html += '<div style="display:flex;justify-content:space-between;margin-bottom:8px">';
+    html += '<span style="color:var(--text2)">Valor mensal por dispositivo extra:</span>';
+    html += '<strong>R$ ' + valorPorMes.toFixed(2).replace('.', ',') + '</strong>';
+    html += '</div>';
+    html += '<div style="display:flex;justify-content:space-between;padding-top:12px;border-top:1px solid var(--border);margin-top:12px">';
+    html += '<span style="font-weight:700;font-size:16px;color:var(--success)">Crédito a receber:</span>';
+    html += '<strong style="color:var(--success);font-size:20px">R$ ' + valorCredito.toFixed(2).replace('.', ',') + '</strong>';
+    html += '</div>';
+    html += '</div>';
+    
+    html += '<div style="font-size:12px;color:var(--text2);text-align:center;margin-bottom:16px">';
+    html += '💡 Este valor ficará como crédito para a sua próxima renovação.';
+    html += '</div>';
+    
+    html += '<button class="btn btn-primary" onclick="confirmarCancelamentoDispositivos(' + novosDispositivos + ', ' + valorCredito + ', \'' + assinatura.id + '\')">✅ Confirmar Redução</button>';
+    html += '<button class="btn btn-outline" onclick="fecharModal()">Cancelar</button>';
+    
+    document.getElementById('modal-body').innerHTML = html;
+    document.getElementById('modal-overlay').classList.add('show');
+}
+
+// Função que confirma a redução e salva no banco
+async function confirmarCancelamentoDispositivos(novosDispositivos, valorCredito, assinaturaId) {
+    if (!currentUser || !supabaseClient) {
+        toast('Erro de autenticação', 'error');
+        return;
+    }
+    
+    toast('Processando alteração...', 'warning');
+    
+    try {
+        // 1. Atualizar assinatura com o novo limite
+        var assinaturaResult = await supabaseClient
+            .from('assinaturas')
+            .update({
+                dispositivos_max: novosDispositivos,
+                updated_at: new Date().toISOString()
+            })
+            .eq('id', assinaturaId);
+        
+        if (assinaturaResult.error) {
+            toast('Erro ao reduzir dispositivos: ' + assinaturaResult.error.message, 'error');
+            return;
+        }
+        
+        // 2. Se tiver crédito, salvar na tabela de créditos (para usar no próximo pagamento)
+        if (valorCredito > 0) {
+            var creditoResult = await supabaseClient
+                .from('creditos')
+                .insert({
+                    user_id: currentUser.id,
+                    assinatura_id: assinaturaId,
+                    valor: valorCredito,
+                    tipo: 'cancelamento_dispositivos',
+                    data_criacao: new Date().toISOString(),
+                    utilizado: false
+                });
+            
+            if (creditoResult.error) {
+                console.warn('⚠️ Erro ao salvar crédito (não crítico):', creditoResult.error);
+            } else {
+                toast('✅ Dispositivos reduzidos! Seu crédito de R$ ' + valorCredito.toFixed(2).replace('.', ',') + ' será aplicado na próxima renovação.', 'success');
+            }
+        } else {
+            toast('✅ Dispositivos reduzidos com sucesso!', 'success');
+        }
+        
+        // 3. Atualizar localStorage para refletir mudança imediata
+        var devices = localStorage.getItem('kayla_pro_devices') || '0/0';
+        var devicesParts = devices.split('/');
+        var usado = devicesParts[0] || '0';
+        localStorage.setItem('kayla_pro_devices', usado + '/' + novosDispositivos);
+        
+        fecharModal();
+        
+        // Recarregar tela de configurações
+        if (typeof mudarAba === 'function') {
+            mudarAba('settings');
+        }
+        
+    } catch(e) {
+        console.error('[Cancelamento] Erro:', e);
+        toast('Erro de conexão ao processar a redução', 'error');
+    }
+}
+
+// Função que será chamada a partir da tela de configurações
+function iniciarCancelamentoDispositivos() {
+    if (!currentUser) {
+        toast('Faça login primeiro', 'error');
+        return;
+    }
+    
+    // Buscar assinatura ativa
+    getAssinaturaAtiva().then(function(assinatura) {
+        if (!assinatura) {
+            toast('Nenhuma assinatura ativa encontrada', 'error');
+            return;
+        }
+        
+        if (assinatura.dispositivos_max <= 1) {
+            toast('Você já está no mínimo de 1 dispositivo.', 'warning');
+            return;
+        }
+        
+        // Criar um modal com as opções de redução
+        var html = '<div class="modal-handle"></div>';
+        html += '<div class="modal-title">📉 Reduzir Dispositivos</div>';
+        html += '<div class="modal-sub">Atual: ' + assinatura.dispositivos_max + ' dispositivo(s)</div>';
+        html += '<div class="card" style="background:var(--bg3);padding:16px;margin-bottom:16px">';
+        
+        for (var i = 1; i < assinatura.dispositivos_max; i++) {
+            var economizando = (assinatura.dispositivos_max - i) * 5;
+            html += '<div class="item-card" style="margin-bottom:8px;cursor:pointer;border:1px solid var(--border)" onclick="cancelarDispositivos(' + i + ')">';
+            html += '<div class="item-info">';
+            html += '<div class="item-name">' + i + ' dispositivo(s)</div>';
+            html += '<div class="item-detail">Economia de R$ ' + economizando.toFixed(2).replace('.', ',') + '/mês</div>';
+            html += '</div>';
+            html += '<div style="font-weight:700;color:var(--accent)">Selecionar →</div>';
+            html += '</div>';
+        }
+        
+        html += '</div>';
+        html += '<button class="btn btn-outline" onclick="fecharModal()">Cancelar</button>';
+        
+        document.getElementById('modal-body').innerHTML = html;
+        document.getElementById('modal-overlay').classList.add('show');
+    });
+}
+
+console.log('✅ Funções de cancelamento/downgrade carregadas');
+
 console.log('✅ Payments.js carregado');
