@@ -325,7 +325,7 @@ async function pagarComMercadoPago(planoId, numDispositivos, valor, metodoPagame
     toast('Processando...', 'warning');
     
     try {
-        // Buscar ID do plano
+        // Registrar pagamento no banco
         var planoResult = await supabaseClient
             .from('planos')
             .select('id')
@@ -371,7 +371,7 @@ async function pagarComMercadoPago(planoId, numDispositivos, valor, metodoPagame
         
         var pagamentoId = registroPagamento.data.id;
         
-        // Chamar Edge Function
+        // ✅ CORREÇÃO AQUI: Usar a variável SUPABASE_KEY (do config.js) em vez do token hardcoded
         var response = await fetch('https://xwwklngrkvdwgiinycvt.supabase.co/functions/v1/criar-pagamento', {
             method: 'POST',
             headers: {
