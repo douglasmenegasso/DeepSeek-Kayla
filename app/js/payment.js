@@ -108,9 +108,11 @@ async function getAssinaturaAtiva() {
             .eq('status', 'ativa')
             .order('created_at', { ascending: false })
             .limit(1)
-            .single();
+            .maybeSingle(); // ✅ CORREÇÃO AQUI: usa maybeSingle() em vez de single()
         
-        if (result.error || !result.data) {
+        if (result.error) {
+            // Se der erro, retorna null (não quebra o app)
+            console.warn('[getAssinaturaAtiva] Erro:', result.error);
             return null;
         }
         
