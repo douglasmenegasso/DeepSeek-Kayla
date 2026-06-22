@@ -23,7 +23,7 @@ window.PLANOS = {
         id: 'anual',
         nome: 'Plano Anual',
         precoBase: 199.90,
-        precoPorDevice: 60.00,
+        precoPorDevice: 5.00, // ✅ CORREÇÃO AQUI: 5.00 (o valor mensal real)
         dispositivosInclusos: 1,
         dispositivosMax: 5,
         duracaoDias: 365,
