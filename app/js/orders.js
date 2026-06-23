@@ -1,5 +1,7 @@
 // ============ PEDIDOS E HISTÓRICO ============
 
+var html5QrCodeDevolucao = null; // Scanner específico para devolução
+
 function renderizarPedidos() {
     var html = '<div class="card"><div class="card-title">📋 Pedidos (' + pedidos.length + ')</div></div>';
     if (pedidos.length === 0) {
@@ -66,8 +68,11 @@ async function devolverPedido(pedidoId) {
     html += '<div style="margin-bottom:12px"><strong>📷 Escanear Código de Barras</strong></div>';
     html += '<div style="display:flex;gap:8px">';
     html += '<input type="text" class="form-input" id="scanner-codigo-devolucao" placeholder="Digite ou escaneie o código" style="flex:1" onkeypress="if(event.key===\'Enter\')removerItemPorCodigo(\'' + pedidoId + '\')">';
+    // ✅ CORREÇÃO: Botão para abrir a câmera
+    html += '<button class="btn btn-sm btn-primary" onclick="abrirScannerDevolucao(\'' + pedidoId + '\')" style="margin:0;white-space:nowrap;font-size:18px">📷</button>';
     html += '<button class="btn btn-sm btn-primary" onclick="removerItemPorCodigo(\'' + pedidoId + '\')" style="margin:0;white-space:nowrap">Remover</button>';
     html += '</div>';
+    html += '<div id="scanner-reader-devolucao" style="width:100%;margin-top:12px;display:none"></div>';
     html += '</div>';
     
     // Container para itens (será preenchido via JavaScript)
@@ -86,6 +91,41 @@ async function devolverPedido(pedidoId) {
         carregarItensParaDevolucao(pedidoId);
     }, 100);
 }
+
+// ============ FUNÇÕES DO SCANNER DE DEVOLUÇÃO ============
+
+function abrirScannerDevolucao(pedidoId) {
+    var readerDiv = document.getElementById('scanner-reader-devolucao');
+    if (!readerDiv) return;
+
+    // Se já existir scanner rodando, para e limpa
+    if (html5QrCodeDevolucao) {
+        html5QrCodeDevolucao.stop();
+        html5QrCodeDevolucao = null;
+    }
+
+    // Mostra a div do scanner
+    readerDiv.style.display = 'block';
+
+    html5QrCodeDevolucao = new Html5Qrcode("scanner-reader-devolucao");
+    html5QrCodeDevolucao.start(
+        { facingMode: "environment" }, 
+        { fps: 5, qrbox: { width: 250, height: 250 } }, 
+        function(decodedText) {
+            // ✅ Sucesso na leitura: preenche o input e dispara a remoção
+            var input = document.getElementById('scanner-codigo-devolucao');
+            if (input) {
+                input.value = decodedText;
+                removerItemPorCodigo(pedidoId);
+            }
+        }
+    ).catch(function(err) {
+        console.warn('Erro ao iniciar scanner de devolução:', err);
+        toast('Erro ao acessar a câmera.', 'error');
+    });
+}
+
+// ============ ITENS DE DEVOLUÇÃO ============
 
 async function carregarItensParaDevolucao(pedidoId) {
     var container = document.getElementById('container-itens-devolucao');
@@ -524,6 +564,7 @@ async function alterarQuantidadeItem(pedidoId, itemId, delta) {
         console.error(e);
     }
 }
+
 async function confirmarDevolucao(pedidoId) {
     toast('Use os botões 🗑️ para remover itens', 'warning');
 }
@@ -632,7 +673,7 @@ async function carregarItensParaVerPedido(pedidoId) {
             
             // Mostrar apenas se tem quantidade restante
             if (qtdAtual > 0) {
-                html += '<div class="item-card"><div class="item-info"><div class="item-name">' + (item.nome || 'Sem nome') + '</div><div class="item-detail">' + qtdAtual + 'x R$ ' + parseFloat(item.preco || 0).toFixed(2).replace('.',',');
+                html += '<div class="item-card"><div class="item-info"><div class="item-name">' + (item.nome || 'Sem nome') + '</div><div class="item-detail">' + qtdAtual + 'x R$ ' + parseFloat(item.preco || 0).toFixed(2).replace('.',',');';
                 if (qtdDevolvida > 0) {
                     html += ' <span style="color:var(--warning);font-size:11px">(Devolvido: ' + qtdDevolvida + 'x)</span>';
                 }
@@ -932,4 +973,4 @@ async function verDetalhesPedidoHistorico(pedidoId) {
     document.getElementById('modal-overlay').classList.add('show');
 }
 
-console.log('✅ Orders.js carregado');
+console.log('✅ Orders.js carregado (Botão de câmera na devolução)');
