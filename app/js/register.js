@@ -102,6 +102,21 @@ async function fazerCadastro() {
                     localStorage.setItem('kayla_email', email);
                     // A função loginSucesso está no auth.js e vai ler o nome do Supabase
                     await loginSucesso(loginResult.data.user);
+
+                    // ✅ ADICIONADO AQUI: Envia o e-mail de boas-vindas
+                    try {
+                        // Chama a Edge Function reset-email com o tipo 'welcome'
+                        await supabaseClient.functions.invoke('reset-email', {
+                            body: { 
+                                email: email, 
+                                tipo: 'welcome' // Isso diz à função para enviar o boas-vindas
+                            }
+                        });
+                    } catch (emailError) {
+                        console.warn('Erro ao enviar e-mail de boas-vindas:', emailError);
+                    }
+                    // ✅ FIM DA ADIÇÃO
+
                 } else {
                     toast('Conta criada! Faça login para entrar.', 'success');
                     fecharModal();
@@ -123,4 +138,4 @@ async function fazerCadastro() {
     btn.disabled = false;
 }
 
-console.log('✅ Register.js carregado (Com Campo Nome)');
+console.log('✅ Register.js carregado (Com Campo Nome e E-mail de Boas-Vindas)');
