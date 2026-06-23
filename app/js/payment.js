@@ -1201,9 +1201,10 @@ async function mostrarInfoAssinatura() {
     
     var assinatura = result.data;
     var dataFim = new Date(assinatura.data_fim).toLocaleDateString('pt-BR');
-    var diasRestantes = Math.ceil((new Date(assinatura.data_fim) - new Date()) / (1000 * 60 * 60 * 24));
+    // ✅ CORREÇÃO: usa Math.floor para evitar dias extras (30 em vez de 31)
+    var diasRestantes = Math.floor((new Date(assinatura.data_fim) - new Date()) / (1000 * 60 * 60 * 24));
 
-    // 🔥 CORREÇÃO AQUI: BUSCAR CRÉDITOS DISPONÍVEIS
+    // Buscar créditos disponíveis
     var saldoCredito = 0;
     try {
         var { data: creditos, error: credError } = await supabaseClient
@@ -1227,9 +1228,11 @@ async function mostrarInfoAssinatura() {
     var html = '<div class="modal-handle"></div>';
     html += '<div class="modal-title">📋 Minha Assinatura</div>';
 
-    // 🔥 CORREÇÃO: EXIBIR O AVISO DE CRÉDITO
+    // 🔥 CORREÇÃO DA COR: Verde escuro e texto branco
     if (saldoCredito > 0) {
-        html += '<div style="background:var(--success);color:#fff;padding:12px;border-radius:8px;text-align:center;margin-bottom:12px;font-size:13px;font-weight:600">💰 Você tem <strong>R$ ' + saldoCredito.toFixed(2).replace('.', ',') + '</strong> em crédito disponível para sua próxima renovação!</div>';
+        html += '<div style="background:#15803d;color:#fff;padding:12px;border-radius:8px;text-align:center;margin-bottom:12px;font-size:13px;font-weight:600;display:flex;align-items:center;justify-content:center;gap:8px">';
+        html += '💰 Você tem <strong>R$ ' + saldoCredito.toFixed(2).replace('.', ',') + '</strong> em crédito disponível para sua próxima renovação!';
+        html += '</div>';
     }
     
     html += '<div class="card" style="background:var(--bg3);padding:16px;margin-bottom:16px">';
@@ -1260,5 +1263,4 @@ async function mostrarInfoAssinatura() {
     document.getElementById('modal-body').innerHTML = html;
     document.getElementById('modal-overlay').classList.add('show');
 }
-
 console.log('✅ Payments.js carregado');
