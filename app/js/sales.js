@@ -92,7 +92,7 @@ function buscarProdutoManual() {
 
 function onScanSuccess(decodedText) {
     if (!clienteAtual) { toast('Selecione cliente', 'warning'); return; }
-    if (html5QrCode) html5QrCode.pause();
+    // ✅ NÃO PÁRA MAIS O SCANNER, APENAS PROCESSA E ELE CONTINUA LENDO
     processarCodigo(decodedText);
 }
 
@@ -107,7 +107,6 @@ async function processarCodigo(codigo) {
     // Verificar se item já foi devolvido anteriormente para este cliente
     if (clienteAtual && isOnline && supabaseClient) {
         try {
-            // Buscar pedidos anteriores deste cliente
             var pedidosCliente = await supabaseClient
                 .from('pedidos')
                 .select('*')
@@ -134,7 +133,6 @@ async function processarCodigo(codigo) {
                         }
                         
                         if (itemDevolvido) {
-                            // Mostrar modal de confirmação
                             abrirModalItemDevolvido(produto, itemDevolvido, dataDevolucao, qtdDevolvida);
                             return;
                         }
@@ -146,7 +144,6 @@ async function processarCodigo(codigo) {
         }
     }
     
-    // Se não foi devolvido, adicionar normalmente
     var itemExistente = pedidoItens.find(function(i) { return i.produto_id === produto.id; });
     if (itemExistente) {
         abrirModalDuplicado(produto, itemExistente);
@@ -303,7 +300,7 @@ async function finalizarPedido() {
         var pedidoData = {
             cliente_id: clienteAtual.id,
             cliente_nome: clienteAtual.nome,
-            status: 'aberto',  // "aberto" = enviado/consignado (aguardando devolução)
+            status: 'aberto',
             itens: totalItens,
             total: total,
             user_id: currentUser ? currentUser.id : 'local',
@@ -313,14 +310,12 @@ async function finalizarPedido() {
         var pedidoCriado = null;
         
         if (isOnline && supabaseClient) {
-            // 1. Criar o pedido
             var result = await supabaseClient.from('pedidos').insert(pedidoData).select();
             if (result.error) throw result.error;
             
             pedidoCriado = result.data[0];
             console.log('✅ Pedido enviado:', pedidoCriado.id);
             
-            // 2. Salvar itens na tabela pedido_itens
             var itensParaSalvar = itensDetalhes.map(function(item) {
                 return {
                     pedido_id: pedidoCriado.id,
@@ -342,7 +337,6 @@ async function finalizarPedido() {
             
             await carregarDados();
         } else {
-            // Offline: salva localmente
             pedidoData.id = 'local_' + Date.now();
             pedidoData.itens_json = JSON.stringify(itensDetalhes);
             pedidos.unshift(pedidoData);
@@ -358,7 +352,7 @@ async function finalizarPedido() {
         
         pedidoItens = [];
         clienteAtual = null;
-        mudarAba('orders');  // Ir para lista de pedidos (não scan)
+        mudarAba('orders');
         
     } catch (error) {
         toast('Erro: ' + error.message, 'error');
@@ -426,7 +420,8 @@ function iniciarScanner() {
     var reader = document.getElementById('reader');
     if (!reader) return;
     html5QrCode = new Html5Qrcode("reader");
-    html5QrCode.start({ facingMode: "environment" }, { fps: 10, qrbox: { width: 250, height: 250 } }, onScanSuccess)
+    // ✅ CONFIGURAÇÃO OTIMIZADA: fps baixo melhora a precisão
+    html5QrCode.start({ facingMode: "environment" }, { fps: 5, qrbox: { width: 300, height: 300 } }, onScanSuccess)
         .catch(function(err) { reader.innerHTML = '<p style="color:var(--text3);text-align:center;padding:20px">Câmera indisponível</p>'; });
 }
 
@@ -541,4 +536,4 @@ async function salvarProdutoNovo() {
     processarCodigo(codigo);
 }
 
-console.log('✅ Sales.js carregado');
+console.log('✅ Sales.js carregado (Scanner otimizado e sem pausa)');
