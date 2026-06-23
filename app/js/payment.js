@@ -452,7 +452,7 @@ function mostrarQRCodePIX(dados, pagamentoId) {
     if (dados.qr_code) {
         html += '<div style="margin-bottom:16px">';
         html += '<div style="font-size:12px;color:var(--text2);margin-bottom:8px">Código PIX (Copia e Cola):</div>';
-       html += '<textarea id="pix-codigo" readonly style="width:100%;height:80px;padding:8px;border-radius:8px;border:1px solid var(--border);font-size:11px;resize:none;background:var(--bg2);font-family:monospace;color:#fff">' + dados.qr_code + '</textarea>';
+        html += '<textarea id="pix-codigo" readonly style="width:100%;height:80px;padding:8px;border-radius:8px;border:1px solid var(--border);font-size:11px;resize:none;background:var(--bg2);font-family:monospace;color:#fff">' + dados.qr_code + '</textarea>';
         html += '</div>';
         
         // Botão Copiar
@@ -1026,6 +1026,64 @@ async function removerDispositivo(deviceId, assinaturaId, elementoHtml) {
         toast('Erro ao remover dispositivo', 'error');
         return false;
     }
+}
+
+// ============ NOVAS FUNÇÕES DE DOWNGRADE ============
+
+// ============ CANCELAMENTO / DOWNGRADE DE DISPOSITIVOS ============
+
+async function cancelarDispositivos(novosDispositivos) {
+    if (!currentUser) { toast('Faça login primeiro', 'error'); return; }
+    var assinatura = await getAssinaturaAtiva();
+    if (!assinatura) { toast('Nenhuma assinatura ativa encontrada', 'error'); return; }
+    if (novosDispositivos >= assinatura.dispositivos_max) { toast('Você só pode reduzir o número de dispositivos.', 'warning'); return; }
+    
+    var dispositivosRemovidos = assinatura.dispositivos_max - novosDispositivos;
+    var diasRestantes = Math.ceil((new Date(assinatura.data_fim) - new Date()) / (1000 * 60 * 60 * 24));
+    var mesesRestantes = Math.ceil(diasRestantes / 30); if (mesesRestantes < 1) mesesRestantes = 1;
+    var valorCredito = dispositivosRemovidos * 5 * mesesRestantes; 
+    valorCredito = Math.round(valorCredito * 100) / 100;
+    
+    var html = '<div class="modal-handle"></div>';
+    html += '<div class="modal-title">📉 Reduzir Dispositivos</div>';
+    html += '<div class="modal-sub">Reduzindo de ' + assinatura.dispositivos_max + ' para ' + novosDispositivos + '</div>';
+    html += '<div class="card" style="background:var(--bg3);padding:16px;margin-bottom:16px">';
+    html += '<div style="display:flex;justify-content:space-between;padding-top:12px;border-top:1px solid var(--border)">';
+    html += '<span style="font-weight:700;font-size:16px;color:var(--success)">Crédito a receber:</span>';
+    html += '<strong style="color:var(--success);font-size:20px">R$ ' + valorCredito.toFixed(2).replace('.', ',') + '</strong>';
+    html += '</div></div>';
+    html += '<button class="btn btn-primary" onclick="confirmarCancelamentoDispositivos(' + novosDispositivos + ', ' + valorCredito + ', \'' + assinatura.id + '\')">✅ Confirmar Redução</button>';
+    html += '<button class="btn btn-outline" onclick="fecharModal()">Cancelar</button>';
+    document.getElementById('modal-body').innerHTML = html; document.getElementById('modal-overlay').classList.add('show');
+}
+
+async function confirmarCancelamentoDispositivos(novosDispositivos, valorCredito, assinaturaId) {
+    if (!currentUser || !supabaseClient) { toast('Erro de autenticação', 'error'); return; }
+    try {
+        await supabaseClient.from('assinaturas').update({ dispositivos_max: novosDispositivos, updated_at: new Date().toISOString() }).eq('id', assinaturaId);
+        if (valorCredito > 0) { await supabaseClient.from('creditos').insert({ user_id: currentUser.id, assinatura_id: assinaturaId, valor: valorCredito, tipo: 'cancelamento_dispositivos', data_criacao: new Date().toISOString(), utilizado: false }); }
+        var devices = localStorage.getItem('kayla_pro_devices') || '0/0'; var usado = devices.split('/')[0] || '0';
+        localStorage.setItem('kayla_pro_devices', usado + '/' + novosDispositivos);
+        fecharModal(); if (typeof mudarAba === 'function') mudarAba('settings');
+        toast('✅ Redução concluída!', 'success');
+    } catch(e) { toast('Erro de conexão', 'error'); }
+}
+
+function iniciarCancelamentoDispositivos() {
+    if (!currentUser) { toast('Faça login primeiro', 'error'); return; }
+    getAssinaturaAtiva().then(function(assinatura) {
+        if (!assinatura || assinatura.dispositivos_max <= 1) { toast('Você já está no mínimo de 1 dispositivo.', 'warning'); return; }
+        
+        var html = '<div class="modal-handle"></div><div class="modal-title">📉 Reduzir Dispositivos</div><div class="modal-sub">Atual: ' + assinatura.dispositivos_max + ' dispositivo(s)</div><div class="card" style="background:var(--bg3);padding:16px;margin-bottom:16px">';
+        for (var i = 1; i < assinatura.dispositivos_max; i++) {
+            var economizando = (assinatura.dispositivos_max - i) * 5;
+            html += '<div class="item-card" style="margin-bottom:8px;cursor:pointer;border:1px solid var(--border)" onclick="cancelarDispositivos(' + i + ')">';
+            html += '<div class="item-info"><div class="item-name">' + i + ' dispositivo(s)</div><div class="item-detail">Economia de R$ ' + economizando.toFixed(2).replace('.', ',') + '/mês</div></div>';
+            html += '<div style="font-weight:700;color:var(--accent)">Selecionar →</div></div>';
+        }
+        html += '</div><button class="btn btn-outline" onclick="fecharModal()">Cancelar</button>';
+        document.getElementById('modal-body').innerHTML = html; document.getElementById('modal-overlay').classList.add('show');
+    });
 }
 
 console.log('✅ Payments.js carregado');
