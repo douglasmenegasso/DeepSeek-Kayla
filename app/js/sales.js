@@ -3,6 +3,7 @@
 var clienteAtual = null;
 var pedidoItens = [];
 var html5QrCode = null;
+var pedidoEmEdicao = null; // 🔥 Variável para guardar o ID do pedido que está sendo editado
 
 function renderizarVenda() {
     var html = '';
@@ -80,6 +81,7 @@ function selecionarClienteVenda(id) {
 function trocarCliente() {
     clienteAtual = null;
     pedidoItens = [];
+    pedidoEmEdicao = null; // 🔥 Limpa a edição
     mudarAba('scan');
 }
 
@@ -92,7 +94,6 @@ function buscarProdutoManual() {
 
 function onScanSuccess(decodedText) {
     if (!clienteAtual) { toast('Selecione cliente', 'warning'); return; }
-    // ✅ NÃO PÁRA MAIS O SCANNER, APENAS PROCESSA E ELE CONTINUA LENDO
     processarCodigo(decodedText);
 }
 
@@ -104,7 +105,6 @@ async function processarCodigo(codigo) {
         return;
     }
     
-    // Verificar se item já foi devolvido anteriormente para este cliente
     if (clienteAtual && isOnline && supabaseClient) {
         try {
             var pedidosCliente = await supabaseClient
@@ -268,6 +268,7 @@ function cancelarPedido() {
     if (pedidoItens.length > 0 && !confirm('Cancelar pedido?')) return;
     pedidoItens = [];
     clienteAtual = null;
+    pedidoEmEdicao = null; // 🔥 Limpa a edição
     mudarAba('scan');
 }
 
@@ -307,48 +308,86 @@ async function finalizarPedido() {
             created_at: new Date().toISOString()
         };
         
-        var pedidoCriado = null;
-        
-        if (isOnline && supabaseClient) {
-            var result = await supabaseClient.from('pedidos').insert(pedidoData).select();
-            if (result.error) throw result.error;
-            
-            pedidoCriado = result.data[0];
-            console.log('✅ Pedido enviado:', pedidoCriado.id);
-            
-            var itensParaSalvar = itensDetalhes.map(function(item) {
-                return {
-                    pedido_id: pedidoCriado.id,
-                    produto_id: item.produto_id,
-                    nome: item.nome,
-                    codigo: item.codigo,
-                    preco: item.preco,
-                    qtd: item.qtd,
-                    total: item.total
-                };
-            });
-            
-            var resultItens = await supabaseClient.from('pedido_itens').insert(itensParaSalvar);
-            if (resultItens.error) {
-                console.warn('⚠️ Erro ao salvar itens:', resultItens.error);
+        if (pedidoEmEdicao) {
+            // 🔥 SE FOR EDIÇÃO, ATUALIZA O PEDIDO
+            if (isOnline && supabaseClient) {
+                // Atualiza o pedido
+                await supabaseClient.from('pedidos').update(pedidoData).eq('id', pedidoEmEdicao);
+                
+                // Remove itens antigos e insere os novos
+                await supabaseClient.from('pedido_itens').delete().eq('pedido_id', pedidoEmEdicao);
+                
+                var itensParaSalvar = itensDetalhes.map(function(item) {
+                    return {
+                        pedido_id: pedidoEmEdicao,
+                        produto_id: item.produto_id,
+                        nome: item.nome,
+                        codigo: item.codigo,
+                        preco: item.preco,
+                        qtd: item.qtd,
+                        total: item.total
+                    };
+                });
+                await supabaseClient.from('pedido_itens').insert(itensParaSalvar);
+                
+                await carregarDados();
             } else {
-                console.log('✅ ' + itensParaSalvar.length + ' itens salvos em pedido_itens');
+                // Offline: atualiza localmente
+                var idx = pedidos.findIndex(function(p) { return p.id === pedidoEmEdicao; });
+                if (idx >= 0) {
+                    pedidos[idx] = Object.assign({}, pedidos[idx], pedidoData);
+                    pedidos[idx].itens_json = JSON.stringify(itensDetalhes);
+                    salvarDadosLocais();
+                }
+            }
+            toast('✅ Pedido atualizado!', 'success');
+            pedidoEmEdicao = null; // 🔥 Limpa a edição
+            
+        } else {
+            // 🔥 SE FOR NOVO, CRIA UM PEDIDO NOVO
+            var pedidoCriado = null;
+            
+            if (isOnline && supabaseClient) {
+                var result = await supabaseClient.from('pedidos').insert(pedidoData).select();
+                if (result.error) throw result.error;
+                
+                pedidoCriado = result.data[0];
+                console.log('✅ Pedido enviado:', pedidoCriado.id);
+                
+                var itensParaSalvar = itensDetalhes.map(function(item) {
+                    return {
+                        pedido_id: pedidoCriado.id,
+                        produto_id: item.produto_id,
+                        nome: item.nome,
+                        codigo: item.codigo,
+                        preco: item.preco,
+                        qtd: item.qtd,
+                        total: item.total
+                    };
+                });
+                
+                var resultItens = await supabaseClient.from('pedido_itens').insert(itensParaSalvar);
+                if (resultItens.error) {
+                    console.warn('⚠️ Erro ao salvar itens:', resultItens.error);
+                } else {
+                    console.log('✅ ' + itensParaSalvar.length + ' itens salvos em pedido_itens');
+                }
+                
+                await carregarDados();
+            } else {
+                pedidoData.id = 'local_' + Date.now();
+                pedidoData.itens_json = JSON.stringify(itensDetalhes);
+                pedidos.unshift(pedidoData);
+                salvarDadosLocais();
+                pedidoCriado = pedidoData;
             }
             
-            await carregarDados();
-        } else {
-            pedidoData.id = 'local_' + Date.now();
-            pedidoData.itens_json = JSON.stringify(itensDetalhes);
-            pedidos.unshift(pedidoData);
-            salvarDadosLocais();
-            pedidoCriado = pedidoData;
+            setTimeout(function() {
+                if (confirm('📦 Pedido enviado para ' + clienteAtual.nome + '!\n\nTotal: R$ ' + total.toFixed(2).replace('.',',') + '\n\nGerar PDF?')) {
+                    gerarPDFPedido(pedidoCriado || pedidoData);
+                }
+            }, 500);
         }
-        
-        setTimeout(function() {
-            if (confirm('📦 Pedido enviado para ' + clienteAtual.nome + '!\n\nTotal: R$ ' + total.toFixed(2).replace('.',',') + '\n\nGerar PDF?')) {
-                gerarPDFPedido(pedidoData);
-            }
-        }, 500);
         
         pedidoItens = [];
         clienteAtual = null;
@@ -420,7 +459,6 @@ function iniciarScanner() {
     var reader = document.getElementById('reader');
     if (!reader) return;
     html5QrCode = new Html5Qrcode("reader");
-    // ✅ CONFIGURAÇÃO OTIMIZADA: fps baixo melhora a precisão
     html5QrCode.start({ facingMode: "environment" }, { fps: 5, qrbox: { width: 300, height: 300 } }, onScanSuccess)
         .catch(function(err) { reader.innerHTML = '<p style="color:var(--text3);text-align:center;padding:20px">Câmera indisponível</p>'; });
 }
@@ -536,4 +574,4 @@ async function salvarProdutoNovo() {
     processarCodigo(codigo);
 }
 
-console.log('✅ Sales.js carregado (Scanner otimizado e sem pausa)');
+console.log('✅ Sales.js carregado (Com suporte a edição de pedidos)');
