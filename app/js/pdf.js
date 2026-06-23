@@ -77,7 +77,7 @@ async function gerarPDFPedido(pedido) {
         doc.setFontSize(12);
         doc.setFont('helvetica', 'bold');
         doc.setTextColor(60);
-        doc.text('👤 Cliente: ' + pedido.cliente_nome, 20, y + 4);
+        doc.text('Cliente: ' + pedido.cliente_nome, 20, y + 4); // ✅ LINHA CORRIGIDA (sem o 👤)
 
         // ========== ITENS DO PEDIDO ==========
         y += 24;
@@ -270,4 +270,4 @@ function mostrarModalUpgradePDF() {
     document.getElementById('modal-overlay').classList.add('show');
 }
 
-console.log('✅ PDF.js carregado (Visual melhorado)');
+console.log('✅ PDF.js carregado (Visual melhorado e corrigido)');
