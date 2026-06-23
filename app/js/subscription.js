@@ -40,14 +40,18 @@ async function cancelarAssinatura() {
     if (!currentUser) { toast('Faça login primeiro.', 'error'); return; }
     var assinatura = await getAssinaturaAtiva();
     if (!assinatura) { toast('Você não possui uma assinatura PRO ativa.', 'error'); return; }
-    if (!confirm('⚠️ ATENÇÃO!\nVocê está prestes a CANCELAR sua assinatura PRO.\nIsso desativará todos os seus dispositivos e você perderá acesso aos recursos PRO.\n\nDeseja continuar?')) return;
-    try {
-        await supabaseClient.from('assinaturas').update({ status: 'cancelada' }).eq('id', assinatura.id);
-        await supabaseClient.from('dispositivos').update({ ativo: false }).eq('assinatura_id', assinatura.id);
-        localStorage.removeItem('kayla_pro'); localStorage.removeItem('kayla_pro_key'); localStorage.removeItem('kayla_pro_expires'); localStorage.removeItem('kayla_pro_devices');
-        LIMITES.proAtivo = false; atualizarBadgePlano(); if (typeof mudarAba === 'function') mudarAba('settings');
-        toast('✅ Assinatura PRO cancelada com sucesso!', 'success');
-    } catch(e) { toast('❌ Erro ao cancelar assinatura', 'error'); }
+    
+    // 🔥 Substituído o confirm() padrão pelo modal do app
+    confirmar('Cancelar Assinatura PRO', '⚠️ ATENÇÃO!\nVocê está prestes a CANCELAR sua assinatura PRO.\nIsso desativará todos os seus dispositivos e você perderá acesso aos recursos PRO.\n\nDeseja continuar?', async function(confirmed) {
+        if (!confirmed) return;
+        try {
+            await supabaseClient.from('assinaturas').update({ status: 'cancelada' }).eq('id', assinatura.id);
+            await supabaseClient.from('dispositivos').update({ ativo: false }).eq('assinatura_id', assinatura.id);
+            localStorage.removeItem('kayla_pro'); localStorage.removeItem('kayla_pro_key'); localStorage.removeItem('kayla_pro_expires'); localStorage.removeItem('kayla_pro_devices');
+            LIMITES.proAtivo = false; atualizarBadgePlano(); if (typeof mudarAba === 'function') mudarAba('settings');
+            toast('✅ Assinatura PRO cancelada com sucesso!', 'success');
+        } catch(e) { toast('❌ Erro ao cancelar assinatura', 'error'); }
+    });
 }
 
 // ============ EXCLUSÃO DEFINITIVA DE CONTA (LGPD) ============
@@ -162,4 +166,4 @@ function verificarLimite(tipo) {
     return true;
 }
 
-console.log('✅ Subscription.js carregado');
+console.log('✅ Subscription.js carregado (Modal de Cancelamento Corrigido)');
