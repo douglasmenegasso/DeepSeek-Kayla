@@ -58,12 +58,51 @@ async function cancelarAssinatura() {
 
 async function excluirConta() {
     if (!currentUser || !supabaseClient) { toast('Nenhum usuário logado.', 'error'); return; }
-    
-    // 🔒 1ª Confirmação (Modal do App - dupla confirmação)
-    confirmar('Excluir Conta', 'Ao confirmar, TODOS os seus dados (cadastro, clientes, produtos, pedidos) serão EXCLUÍDOS PERMANENTEMENTE.\n\nEsta ação é IRREVERSÍVEL de acordo com a LGPD.', async function(confirmou1) {
+
+    // 🔍 Buscar dados do usuário para exibir no resumo antes da exclusão
+    let resumoTexto = '';
+    try {
+        // 1. Buscar créditos disponíveis
+        var { data: creditos } = await supabaseClient
+            .from('creditos')
+            .select('valor')
+            .eq('user_id', currentUser.id)
+            .eq('utilizado', false);
+        var totalCredito = 0;
+        if (creditos && creditos.length > 0) {
+            creditos.forEach(function(cred) { totalCredito += parseFloat(cred.valor || 0); });
+        }
+
+        // 2. Buscar assinatura ativa e dispositivos
+        var assinatura = await getAssinaturaAtiva();
+        var dispositivosAtivos = 0;
+        if (assinatura) {
+            var { count: deviceCount } = await supabaseClient
+                .from('dispositivos')
+                .select('id', { count: 'exact', head: true })
+                .eq('assinatura_id', assinatura.id)
+                .eq('ativo', true);
+            dispositivosAtivos = deviceCount || 0;
+        }
+
+        // Montar o resumo que aparecerá no modal
+        if (totalCredito > 0 || assinatura || dispositivosAtivos > 0) {
+            resumoTexto += '\n\n🔍 Dados encontrados na sua conta:';
+            if (totalCredito > 0) resumoTexto += '\n   💰 Créditos: R$ ' + totalCredito.toFixed(2).replace('.', ',');
+            if (assinatura) resumoTexto += '\n   💎 Plano PRO: Ativo (válido até ' + new Date(assinatura.data_fim).toLocaleDateString('pt-BR') + ')';
+            if (dispositivosAtivos > 0) resumoTexto += '\n   📱 Dispositivos ativos: ' + dispositivosAtivos;
+            resumoTexto += '\n\nTodos esses dados serão excluídos permanentemente.';
+        }
+
+    } catch (e) {
+        console.warn('Erro ao buscar dados para o resumo da exclusão:', e);
+    }
+
+    // 🔒 1ª Confirmação (Já com o resumo dos dados)
+    confirmar('Excluir Conta', 'Ao confirmar, TODOS os seus dados (cadastro, clientes, produtos, pedidos e assinaturas) serão EXCLUÍDOS PERMANENTEMENTE.\n\nEsta ação é IRREVERSÍVEL de acordo com a LGPD.' + resumoTexto, async function(confirmou1) {
         if (!confirmou1) return;
 
-        // 🔒 2ª Confirmação (Modal do App)
+        // 🔒 2ª Confirmação (Última Chance)
         confirmar('Última Chance!', 'Você tem certeza absoluta que deseja deletar sua conta?\n\nNão há como recuperar essas informações.', async function(confirmou2) {
             if (!confirmou2) return;
             
@@ -91,7 +130,6 @@ async function excluirConta() {
         });
     });
 }
-
 // ============ VERIFICAR STATUS PRO ============
 
 async function verificarStatusPro() {
