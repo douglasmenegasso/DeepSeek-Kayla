@@ -17,34 +17,58 @@ async function gerarPDFPedido(pedido) {
             format: 'a4'
         });
 
-        // ========== CABEÇALHO ==========
+        // ========== CABEÇALHO E INFORMAÇÕES DA EMPRESA ==========
         var nomeEmpresa = configEmpresa.nome || 'Kayla - Venda Consignada';
         var logoLocal = localStorage.getItem('kayla_logo_local');
+        var y = 15;
 
         // Logo e nome da empresa
-        var y = 15;
         if (logoLocal) {
             try {
+                // Logo à esquerda
                 doc.addImage(logoLocal, 'PNG', 15, y, 25, 15);
+                
+                // Nome da empresa à direita do logo
                 doc.setFontSize(18);
                 doc.setTextColor(124, 92, 252); // Roxo Kayla
                 doc.setFont('helvetica', 'bold');
                 doc.text(nomeEmpresa, 50, y + 11);
             } catch(e) {
+                // Fallback se o logo falhar
                 doc.setFontSize(22);
                 doc.setTextColor(124, 92, 252);
                 doc.setFont('helvetica', 'bold');
                 doc.text(nomeEmpresa, 105, y + 10, { align: 'center' });
             }
         } else {
+            // Sem logo, nome centralizado
             doc.setFontSize(22);
             doc.setTextColor(124, 92, 252);
             doc.setFont('helvetica', 'bold');
             doc.text(nomeEmpresa, 105, y + 10, { align: 'center' });
         }
 
-        // Linha separadora superior
-        y += 22;
+        // Informações da empresa (CNPJ, Endereço, Telefone)
+        y = 35;
+        doc.setFontSize(8);
+        doc.setTextColor(80);
+        doc.setFont('helvetica', 'normal');
+
+        if (logoLocal) {
+            // Se tiver logo, alinha as informações abaixo da linha do logo
+            var xInfo = 15;
+            if (configEmpresa.cnpj) doc.text('CNPJ/CPF: ' + configEmpresa.cnpj, xInfo, y);
+            if (configEmpresa.endereco) doc.text(configEmpresa.endereco, xInfo, y + 4);
+            if (configEmpresa.telefone) doc.text('Tel: ' + configEmpresa.telefone, xInfo, y + 8);
+        } else {
+            // Sem logo, centraliza as informações
+            if (configEmpresa.cnpj) doc.text('CNPJ/CPF: ' + configEmpresa.cnpj, 105, y, { align: 'center' });
+            if (configEmpresa.endereco) doc.text(configEmpresa.endereco, 105, y + 4, { align: 'center' });
+            if (configEmpresa.telefone) doc.text('Tel: ' + configEmpresa.telefone, 105, y + 8, { align: 'center' });
+        }
+
+        // Linha separadora após as informações da empresa
+        y += 14;
         doc.setDrawColor(200, 200, 200);
         doc.setLineWidth(0.5);
         doc.line(15, y, 195, y);
@@ -69,7 +93,7 @@ async function gerarPDFPedido(pedido) {
         doc.text('Data: ' + new Date(pedido.created_at).toLocaleDateString('pt-BR'), 20, y + 12);
         doc.text('Status: ' + pedido.status.toUpperCase(), 20, y + 19);
 
-        // Cliente em destaque
+        // ========== CLIENTE EM DESTAQUE ==========
         y += 45;
         doc.setFillColor(242, 236, 255); // Roxo bem claro (soft)
         doc.setDrawColor(124, 92, 252);
@@ -77,7 +101,7 @@ async function gerarPDFPedido(pedido) {
         doc.setFontSize(12);
         doc.setFont('helvetica', 'bold');
         doc.setTextColor(60);
-        doc.text('Cliente: ' + pedido.cliente_nome, 20, y + 4); // ✅ LINHA CORRIGIDA (sem o 👤)
+        doc.text('Cliente: ' + pedido.cliente_nome, 20, y + 4); // ✅ SEM O EMOJI, APENAS TEXTO LIMPO
 
         // ========== ITENS DO PEDIDO ==========
         y += 24;
@@ -92,7 +116,7 @@ async function gerarPDFPedido(pedido) {
         doc.text('Itens do Pedido:', 15, y);
         y += 8;
 
-        // Cabeçalho da tabela (Fundo escuro)
+        // Cabeçalho da tabela (Fundo escuro moderno)
         doc.setFillColor(44, 44, 52); // bg2
         doc.setDrawColor(44, 44, 52);
         doc.rect(15, y - 4, 180, 8, 'FD');
@@ -270,4 +294,4 @@ function mostrarModalUpgradePDF() {
     document.getElementById('modal-overlay').classList.add('show');
 }
 
-console.log('✅ PDF.js carregado (Visual melhorado e corrigido)');
+console.log('✅ PDF.js carregado (Versão Final com Design Moderno e Dados da Empresa)');
