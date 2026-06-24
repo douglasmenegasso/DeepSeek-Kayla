@@ -51,9 +51,12 @@ async function verificarSessao() {
             
             if (isOnline && supabaseClient) {
                 try {
-                    // ✅ Adicionado: verificar status PRO e limites ao reabrir o app
-                    await verificarStatusPro();
                     await carregarDados();
+                    await verificarStatusPro();
+                    // ✅ CORREÇÃO: Tentar registrar o dispositivo ao reabrir o app também
+                    if (LIMITES.proAtivo) {
+                        await registrarDispositivoAtual();
+                    }
                 } catch(e) {
                     console.warn('Falha ao sincronizar, usando dados locais');
                 }
@@ -181,7 +184,6 @@ async function fazerLogin() {
             // Login online sucesso
             if (result.data && result.data.user) {
                 await loginSucesso(result.data.user, senha, lembrarMe);
-                // ⭐ REMOVIDO: await verificarAcessoApp(); (função não existe)
             } else {
                 toast('Erro ao fazer login', 'error');
             }
@@ -260,44 +262,23 @@ async function loginSucesso(user, senha, lembrarMe) {
         console.log('[AUTH] Carregando dados offline...');
         carregarDadosLocais();
     }
-    
-    // Verifica status PRO baseado na assinatura e validade
+
+    // Verifica se tem assinatura válida e define a badge
     await verificarStatusPro();
 
-    // 🔥 VERIFICAÇÃO DE DISPOSITIVOS (Comportamento original)
+    // ✅ CORREÇÃO: Tenta registrar o dispositivo ATUAL no banco
     if (isOnline && supabaseClient && currentUser) {
         try {
-            // 1. Buscar assinatura ativa do usuário
-            var { data: assinatura, error: assError } = await supabaseClient
-                .from('assinaturas')
-                .select('*')
-                .eq('user_id', currentUser.id)
-                .eq('status', 'ativa')
-                .order('created_at', { ascending: false })
-                .limit(1)
-                .maybeSingle();
-
-            if (!assError && assinatura) {
-                // 2. Contar dispositivos ativos para esta assinatura
-                var { count: dispositivosAtivos, error: countError } = await supabaseClient
-                    .from('dispositivos')
-                    .select('id', { count: 'exact', head: true })
-                    .eq('assinatura_id', assinatura.id)
-                    .eq('ativo', true);
-
-                if (!countError && dispositivosAtivos >= assinatura.dispositivos_max) {
-                    // Atingiu o limite! Desativa o PRO localmente (rebaixa para GRÁTIS)
-                    LIMITES.proAtivo = false;
-                    localStorage.removeItem('kayla_pro');
-                    localStorage.removeItem('kayla_pro_key');
-                    localStorage.removeItem('kayla_pro_expires');
-                    localStorage.removeItem('kayla_pro_devices');
-                    atualizarBadgePlano();
-                    console.warn('[AUTH] 🔒 Limite de dispositivos atingido. Modo GRÁTIS ativado neste dispositivo.');
-                }
+            // A função registrarDispositivoAtual está no subscription.js
+            var dispositivoRegistrado = await registrarDispositivoAtual();
+            
+            // Se o registro falhou (porque estourou o limite), re-verifica o status para rebaixar para GRÁTIS
+            if (!dispositivoRegistrado) {
+                await verificarStatusPro();
+                console.warn('[AUTH] 🔒 Limite de dispositivos atingido. Modo GRÁTIS ativado neste dispositivo.');
             }
         } catch (e) {
-            console.warn('Erro ao verificar limite de dispositivos:', e);
+            console.warn('Erro ao registrar dispositivo:', e);
         }
     }
     
@@ -418,4 +399,4 @@ function recuperarSenha() {
     });
 }
 
-console.log('✅ Auth.js carregado (Versão atualizada com verificação de dispositivos)');
+console.log('✅ Auth.js carregado (Versão corrigida com registro de dispositivo)');
