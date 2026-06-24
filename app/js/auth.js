@@ -1,4 +1,4 @@
-// ============ AUTENTICAÇÃO (Versão Final - Com Nome e Boas-Vindas) ============
+// ============ AUTENTICAÇÃO ============
 
 function mostrarTelaSelecao() {
     document.getElementById('login-screen').style.display = 'flex';
@@ -44,105 +44,28 @@ async function verificarSessao() {
         
         if (userSalvo) {
             try {
-                var usuarioLocal = JSON.parse(userSalvo);
-                currentUser = usuarioLocal;
-
-                // ✅ SEGURANÇA: Verifica usuário APENAS se estiver ONLINE
-                if (isOnline && supabaseClient && usuarioLocal.id) {
-                    var { data: usuarioBanco, error } = await supabaseClient
-                        .from('auth.users')
-                        .select('id')
-                        .eq('id', usuarioLocal.id)
-                        .maybeSingle();
-
-                    // Se o usuário não existir no banco, força logout no Supabase e local
-                    if (error || !usuarioBanco) {
-                        console.warn('[SEGURANÇA] Usuário salvo não encontrado no banco. Realizando logout forçado.');
-                        
-                        // Força logout no Supabase
-                        if (supabaseClient) {
-                            try {
-                                await supabaseClient.auth.signOut();
-                            } catch (e) {
-                                console.warn('Erro ao fazer logout forçado no Supabase:', e);
-                            }
-                        }
-                        
-                        realizarLogoutForcado();
-                        return;
-                    }
-                    
-                    // Se passou na verificação, atualiza a data do último login
-                    localStorage.setItem('kayla_last_login', new Date().toISOString());
-                }
-                
-                // ✅ Verifica se ainda tem dispositivos ativos (se estiver online)
-                if (isOnline && supabaseClient && currentUser) {
-                    try {
-                        var assinatura = await getAssinaturaAtiva();
-                        if (assinatura) {
-                            var countResult = await supabaseClient
-                                .from('dispositivos')
-                                .select('id', { count: 'exact', head: true })
-                                .eq('assinatura_id', assinatura.id)
-                                .eq('ativo', true);
-                            
-                            // Se não houver mais dispositivos ativos, derruba o PRO do localStorage
-                            if (countResult.count === 0 && !LIMITES.proAtivo) {
-                                localStorage.removeItem('kayla_pro');
-                                localStorage.removeItem('kayla_pro_key');
-                                localStorage.removeItem('kayla_pro_expires');
-                                localStorage.removeItem('kayla_pro_devices');
-                                LIMITES.proAtivo = false;
-                            }
-                        }
-                    } catch(e) {
-                        console.warn('Erro ao verificar dispositivos na sessão:', e);
-                    }
-                }
-                
-                // Carrega os dados e mostra o app (SEMPRE, mesmo offline)
-                if (isOnline && supabaseClient) {
-                    try {
-                        await carregarDados();
-                    } catch(e) {
-                        console.warn('Falha ao sincronizar, usando dados locais');
-                    }
-                } else {
-                    carregarDadosLocais();
-                }
-                
-                mostrarApp();
-                return;
-                
+                currentUser = JSON.parse(userSalvo);
             } catch(e) {
-                console.error('Erro ao restaurar sessão:', e);
-                // Se der erro ao ler o JSON, apaga e manda pro login
-                localStorage.removeItem('kayla_user');
-                localStorage.removeItem('kayla_email');
-                localStorage.removeItem('kayla_lembrar_me');
-                mostrarTelaSelecao();
+                currentUser = { email: emailSalvo, id: 'local' };
             }
+            
+            if (isOnline && supabaseClient) {
+                try {
+                    // ✅ Adicionado: verificar status PRO e limites ao reabrir o app
+                    await verificarStatusPro();
+                    await carregarDados();
+                } catch(e) {
+                    console.warn('Falha ao sincronizar, usando dados locais');
+                }
+            } else {
+                carregarDadosLocais();
+            }
+            
+            mostrarApp();
+            return;
         }
     }
     
-    mostrarTelaSelecao();
-}
-
-// Função auxiliar para realizar logout forçado
-function realizarLogoutForcado() {
-    localStorage.removeItem('kayla_lembrar_me');
-    localStorage.removeItem('kayla_email');
-    localStorage.removeItem('kayla_user');
-    localStorage.removeItem('kayla_access_token');
-    localStorage.removeItem('kayla_refresh_token');
-    localStorage.removeItem('kayla_last_login');
-    localStorage.removeItem('kayla_pro');
-    localStorage.removeItem('kayla_pro_key');
-    localStorage.removeItem('kayla_pro_expires');
-    localStorage.removeItem('kayla_pro_devices');
-    currentUser = null;
-    LIMITES.proAtivo = false;
     mostrarTelaSelecao();
 }
 
@@ -166,11 +89,63 @@ async function fazerLogin() {
     
     console.log('[AUTH] Tentando login - Email:', email, 'Online:', isOnline);
     
-    // Verifica sessão salva OFF-LINE
+    // OFFLINE: Primeiro verifica se tem sessão salva
     var userSalvo = localStorage.getItem('kayla_user');
     var emailSalvo = localStorage.getItem('kayla_email');
+    var senhaSalva = localStorage.getItem('kayla_senha_hash');
     
-    // Tenta login ONLINE
+    if (!isOnline && userSalvo && emailSalvo === email) {
+        console.log('[AUTH] Login OFFLINE detectado');
+        
+        try {
+            var userOffline = JSON.parse(userSalvo);
+            
+            if (senhaSalva) {
+                var senhaDecodificada = atob(senhaSalva);
+                if (senha !== senhaDecodificada) {
+                    toast('Senha incorreta', 'error');
+                    if (btn) {
+                        btn.innerText = textoOriginal;
+                        btn.disabled = false;
+                    }
+                    return;
+                }
+            }
+            
+            currentUser = userOffline;
+            
+            if (lembrarMe) {
+                localStorage.setItem('kayla_lembrar_me', 'true');
+                localStorage.setItem('kayla_email', email);
+            }
+            
+            carregarDadosLocais();
+            
+            fecharModal();
+            toast('Bem-vindo (Offline)!', 'success');
+            mostrarApp();
+            atualizarBadgePlano();
+            
+            console.log('[AUTH] Login OFFLINE sucesso');
+            
+            if (btn) {
+                btn.innerText = textoOriginal;
+                btn.disabled = false;
+            }
+            return;
+            
+        } catch(e) {
+            console.error('[AUTH] Erro ao fazer login offline:', e);
+            toast('Erro ao carregar sessão offline', 'error');
+            if (btn) {
+                btn.innerText = textoOriginal;
+                btn.disabled = false;
+            }
+            return;
+        }
+    }
+    
+    // ONLINE: Tenta login no Supabase
     if (supabaseClient) {
         console.log('[AUTH] Login ONLINE via Supabase');
         
@@ -185,60 +160,13 @@ async function fazerLogin() {
             if (result.error) {
                 var errorMsg = result.error.message || 'Erro desconhecido';
                 
-                // Se der erro, tenta login OFFLINE como fallback
-                if (userSalvo && emailSalvo === email) {
-                    console.log('[AUTH] Falha online, tentando offline...');
-                    toast('Sem conexão. Tentando login offline...', 'warning');
-                    
-                    try {
-                        var userOffline = JSON.parse(userSalvo);
-                        currentUser = userOffline;
-                        
-                        if (lembrarMe) {
-                            localStorage.setItem('kayla_lembrar_me', 'true');
-                            localStorage.setItem('kayla_email', email);
-                        }
-                        
-                        carregarDadosLocais();
-                        fecharModal();
-                        toast('Bem-vindo (Offline)!', 'success');
-                        mostrarApp();
-                        atualizarBadgePlano();
-                        
-                        if (btn) {
-                            btn.innerText = textoOriginal;
-                            btn.disabled = false;
-                        }
-                        return;
-                    } catch(e) {
-                        console.error('[AUTH] Erro no fallback offline:', e);
-                    }
-                }
-                
-                // ✅ SE ESTIVER ONLINE E DER ERRO, SUGERE O CADASTRO AUTOMATICAMENTE
-                if (isOnline) {
-                    var erroSenha = errorMsg.toLowerCase().includes('invalid login credentials') || 
-                                     errorMsg.toLowerCase().includes('bad request');
-
-                    if (erroSenha) {
-                        toast('E-mail não encontrado. Vamos criar sua conta agora?', 'warning');
-                        fecharModal(); // Fecha o modal de login
-                        
-                        // Aguarda 1 segundo e abre o modal de cadastro
-                        setTimeout(function() {
-                            abrirCadastro();
-                        }, 1000);
-                        
-                        if (btn) {
-                            btn.innerText = textoOriginal;
-                            btn.disabled = false;
-                        }
-                        return;
-                    } else {
-                        toast('Erro: ' + errorMsg, 'error');
-                    }
+                if (errorMsg.toLowerCase().includes('invalid login credentials') || 
+                    errorMsg.toLowerCase().includes('bad request')) {
+                    toast('E-mail ou senha incorretos!', 'error');
+                } else if (errorMsg.toLowerCase().includes('email not confirmed')) {
+                    toast('Confirme seu e-mail antes de entrar', 'warning');
                 } else {
-                    toast('Erro de conexão. Verifique sua internet.', 'error');
+                    toast('Erro: ' + errorMsg, 'error');
                 }
                 
                 console.error('[AUTH] Erro login:', result.error);
@@ -252,14 +180,8 @@ async function fazerLogin() {
             
             // Login online sucesso
             if (result.data && result.data.user) {
-                // Salva sessão SEM senha
-                var session = result.data.session;
-                if (session) {
-                    localStorage.setItem('kayla_access_token', session.access_token);
-                    localStorage.setItem('kayla_refresh_token', session.refresh_token);
-                }
-                
-                await loginSucesso(result.data.user, lembrarMe);
+                await loginSucesso(result.data.user, senha, lembrarMe);
+                // ⭐ REMOVIDO: await verificarAcessoApp(); (função não existe)
             } else {
                 toast('Erro ao fazer login', 'error');
             }
@@ -267,9 +189,8 @@ async function fazerLogin() {
         } catch(error) {
             console.error('[AUTH] Exceção no login:', error);
             
-            // Se der erro de conexão, tenta offline
             if (userSalvo && emailSalvo === email) {
-                console.log('[AUTH] Exceção online, tentando offline...');
+                console.log('[AUTH] Falha online, tentando offline...');
                 toast('Sem conexão. Tentando login offline...', 'warning');
                 
                 try {
@@ -292,6 +213,7 @@ async function fazerLogin() {
                         btn.disabled = false;
                     }
                     return;
+                    
                 } catch(e) {
                     console.error('[AUTH] Erro no fallback offline:', e);
                 }
@@ -309,20 +231,18 @@ async function fazerLogin() {
     }
 }
 
-async function loginSucesso(user, lembrarMe) {
+async function loginSucesso(user, senha, lembrarMe) {
     console.log('[AUTH] Login sucesso:', user.email);
-    
-    // Pega o nome salvo no metadata do Supabase
-    var nomeUsuario = user.user_metadata?.name || user.email.split('@')[0];
-    user.name = nomeUsuario; // Adiciona o nome ao objeto do usuário
     
     currentUser = user;
     
     try {
         localStorage.setItem('kayla_user', JSON.stringify(user));
         localStorage.setItem('kayla_email', user.email);
-        localStorage.setItem('kayla_name', nomeUsuario); // Salva o nome separadamente
-        localStorage.setItem('kayla_last_login', new Date().toISOString());
+        
+        if (senha) {
+            localStorage.setItem('kayla_senha_hash', btoa(senha));
+        }
         
         if (lembrarMe) {
             localStorage.setItem('kayla_lembrar_me', 'true');
@@ -340,12 +260,49 @@ async function loginSucesso(user, lembrarMe) {
         console.log('[AUTH] Carregando dados offline...');
         carregarDadosLocais();
     }
+    
+    // Verifica status PRO baseado na assinatura e validade
+    await verificarStatusPro();
 
-    // Verifica se o usuário tem assinatura PRO no Supabase
-    await verificarStatusPro(); 
+    // 🔥 VERIFICAÇÃO DE DISPOSITIVOS (Comportamento original)
+    if (isOnline && supabaseClient && currentUser) {
+        try {
+            // 1. Buscar assinatura ativa do usuário
+            var { data: assinatura, error: assError } = await supabaseClient
+                .from('assinaturas')
+                .select('*')
+                .eq('user_id', currentUser.id)
+                .eq('status', 'ativa')
+                .order('created_at', { ascending: false })
+                .limit(1)
+                .maybeSingle();
+
+            if (!assError && assinatura) {
+                // 2. Contar dispositivos ativos para esta assinatura
+                var { count: dispositivosAtivos, error: countError } = await supabaseClient
+                    .from('dispositivos')
+                    .select('id', { count: 'exact', head: true })
+                    .eq('assinatura_id', assinatura.id)
+                    .eq('ativo', true);
+
+                if (!countError && dispositivosAtivos >= assinatura.dispositivos_max) {
+                    // Atingiu o limite! Desativa o PRO localmente (rebaixa para GRÁTIS)
+                    LIMITES.proAtivo = false;
+                    localStorage.removeItem('kayla_pro');
+                    localStorage.removeItem('kayla_pro_key');
+                    localStorage.removeItem('kayla_pro_expires');
+                    localStorage.removeItem('kayla_pro_devices');
+                    atualizarBadgePlano();
+                    console.warn('[AUTH] 🔒 Limite de dispositivos atingido. Modo GRÁTIS ativado neste dispositivo.');
+                }
+            }
+        } catch (e) {
+            console.warn('Erro ao verificar limite de dispositivos:', e);
+        }
+    }
     
     fecharModal();
-    toast('Bem-vindo, ' + nomeUsuario + '!', 'success');
+    toast('Bem-vindo!', 'success');
     mostrarApp();
     atualizarBadgePlano();
     
@@ -366,20 +323,12 @@ async function fazerLogout() {
     localStorage.removeItem('kayla_lembrar_me');
     localStorage.removeItem('kayla_email');
     localStorage.removeItem('kayla_user');
-    localStorage.removeItem('kayla_access_token');
-    localStorage.removeItem('kayla_refresh_token');
-    localStorage.removeItem('kayla_last_login');
-    localStorage.removeItem('kayla_pro');
-    localStorage.removeItem('kayla_pro_key');
-    localStorage.removeItem('kayla_pro_expires');
-    localStorage.removeItem('kayla_pro_devices');
-    localStorage.removeItem('kayla_name');
+    localStorage.removeItem('kayla_senha_hash');
     localStorage.removeItem('perfilAcesso');
     
     currentUser = null;
     clienteAtual = null;
     pedidoItens = [];
-    LIMITES.proAtivo = false;
     
     toast('Logout realizado', 'success');
     
@@ -469,25 +418,4 @@ function recuperarSenha() {
     });
 }
 
-// Verifica se o usuário está logado automaticamente ao carregar a página
-window.addEventListener('DOMContentLoaded', function() {
-    // Se tiver token de acesso salvo, tenta restaurar sessão
-    var accessToken = localStorage.getItem('kayla_access_token');
-    if (accessToken && supabaseClient) {
-        supabaseClient.auth.setSession({
-            access_token: accessToken,
-            refresh_token: localStorage.getItem('kayla_refresh_token') || ''
-        }).then(function(result) {
-            if (result.data && result.data.session) {
-                verificarSessao();
-            }
-        }).catch(function(e) {
-            console.warn('Erro ao restaurar sessão via token:', e);
-            verificarSessao();
-        });
-    } else {
-        verificarSessao();
-    }
-});
-
-console.log('✅ Auth.js carregado (Versão Final - Com Nome e Boas-Vindas)');
+console.log('✅ Auth.js carregado (Versão atualizada com verificação de dispositivos)');
